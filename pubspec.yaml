@@ -1,0 +1,61 @@
+name: eduserveapp
+description: "Unofficial Flutter client for the Karunya EduServe university portal."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # WebView + Chrome Custom Tabs (for Google OAuth compliance)
+  flutter_inappwebview: ^6.1.5
+
+  # Secure token/cookie storage (uses Android Keystore / iOS Keychain)
+  flutter_secure_storage: ^9.2.2
+
+  # State management
+  provider: ^6.1.2
+
+  # Routing
+  go_router: ^14.6.1
+
+  # HTML parsing for portal scraping
+  html: ^0.15.4
+
+  # HTTP client for authenticated API requests
+  http: ^1.2.2
+
+  # Lightweight key-value storage (non-sensitive preferences)
+  shared_preferences: ^2.3.2
+
+  # Local push notifications for assignment reminders
+  flutter_local_notifications: ^18.0.1
+
+  # Network connectivity monitoring
+  connectivity_plus: ^6.0.3
+
+  # Date/time formatting
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package
