@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "585351628248",
+    "project_id": "eduserveapp",
+    "storage_bucket": "eduserveapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:585351628248:android:ee5b6ba4cc82512bd2dead",
+        "android_client_info": {
+          "package_name": "com.karunya.eduserveapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCTpF8pZ1ZLNJC8at0N1oakAOytDXfgFPo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

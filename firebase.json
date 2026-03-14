@@ -1,0 +1,31 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "eduserveapp",
+          "appId": "1:585351628248:android:ee5b6ba4cc82512bd2dead",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "eduserveapp",
+          "configurations": {
+            "android": "1:585351628248:android:ee5b6ba4cc82512bd2dead",
+            "ios": "1:585351628248:ios:f91025a8485e2a5cd2dead",
+            "macos": "1:585351628248:ios:f91025a8485e2a5cd2dead",
+            "web": "1:585351628248:web:dae41518ed876139d2dead",
+            "windows": "1:585351628248:web:93770e47545c90a5d2dead"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "asia-south1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}
