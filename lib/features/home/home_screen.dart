@@ -50,72 +50,32 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _openNotificationsPanel() async {
     await widget.onNotificationsViewed();
     final feed = await NotificationCenterService.instance.getGreetingFeed();
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
-    await showModalBottomSheet<void>(
+    await showGeneralDialog<void>(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      useSafeArea: true,
-      builder: (context) {
-        return SizedBox(
-          height: MediaQuery.of(context).size.height * 0.7,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Notifications',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+      barrierLabel: 'Notifications',
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.15),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (context, animation, _, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, -0.05),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+          child: Align(
+            alignment: Alignment.topRight,
+            child: Padding(
+              padding: const EdgeInsets.only(top: kToolbarHeight + 12, right: 12),
+              child: SafeArea(
+                child: Material(
+                  color: Colors.transparent,
+                  child: _NotificationPopup(initialFeed: feed),
                 ),
               ),
-              Expanded(
-                child: feed.isEmpty
-                    ? const Center(child: Text('No new updates.'))
-                    : ListView.separated(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        itemCount: feed.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final item = feed[index];
-                          final title = (item['title'] as String?) ?? 'Update';
-                          final message = (item['message'] as String?) ?? '';
-                          final ms =
-                              (item['createdAtMs'] as num?)?.toInt() ?? 0;
-                          final dt = DateTime.fromMillisecondsSinceEpoch(ms);
-                          final timeText =
-                              '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-
-                          return ListTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.emeraldLight,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.notifications_active_outlined,
-                                color: AppColors.emeraldPrimary,
-                                size: 20,
-                              ),
-                            ),
-                            title: Text(title,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600)),
-                            subtitle: Text(message),
-                            trailing: Text(timeText,
-                                style: const TextStyle(
-                                    fontSize: 12, color: Colors.grey)),
-                          );
-                        },
-                      ),
-              ),
-            ],
+            ),
           ),
         );
       },
@@ -209,21 +169,18 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _greeting(),
-              style: TextStyle(
-                fontSize: 16,
-                color: Theme.of(context).hintColor,
-                fontWeight: FontWeight.w500,
-              ),
+              '${_greeting()}, $name 👋',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
+                  ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
-              name,
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                height: 1.1,
-              ),
+              'Welcome back to PocketEduServe',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).hintColor,
+                  ),
             ),
           ],
         );
@@ -502,6 +459,178 @@ class _EventCard extends StatelessWidget {
                 size: 16, color: Theme.of(context).hintColor),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _NotificationPopup extends StatefulWidget {
+  const _NotificationPopup({required this.initialFeed});
+
+  final List<Map<String, dynamic>> initialFeed;
+
+  @override
+  State<_NotificationPopup> createState() => _NotificationPopupState();
+}
+
+class _NotificationPopupState extends State<_NotificationPopup> {
+  late List<Map<String, dynamic>> _feed;
+
+  @override
+  void initState() {
+    super.initState();
+    _feed = List<Map<String, dynamic>>.from(widget.initialFeed);
+  }
+
+  Future<void> _deleteAt(int index) async {
+    await NotificationCenterService.instance.removeAt(index);
+    if (mounted) {
+      setState(() {
+        if (index >= 0 && index < _feed.length) {
+          _feed.removeAt(index);
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: 320,
+      constraints: const BoxConstraints(maxHeight: 380),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 12),
+          ),
+        ],
+        border: Border.all(color: Colors.black12.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: <Widget>[
+                const Icon(Icons.notifications_active_outlined, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Notifications',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: _feed.isEmpty
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('No new updates.'),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    itemCount: _feed.length,
+                    itemBuilder: (context, index) {
+                      final item = _feed[index];
+                      final title = (item['title'] as String?) ?? 'Update';
+                      final message = (item['message'] as String?) ?? '';
+                      final ms = (item['createdAtMs'] as num?)?.toInt() ?? 0;
+                      final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+                      final timeText =
+                          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+                      return Dismissible(
+                        key: ValueKey('${item['title']}-${item['createdAtMs'] ?? index}'),
+                        direction: DismissDirection.endToStart,
+                        onDismissed: (_) => _deleteAt(index),
+                        background: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: const Icon(Icons.delete_outline, color: Colors.white),
+                        ),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: theme.dividerColor.withValues(alpha: 0.25),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.emeraldLight,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.notifications_none,
+                                  size: 18,
+                                  color: AppColors.emeraldPrimary,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Text(
+                                      title,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      message,
+                                      style: theme.textTheme.bodyMedium,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      timeText,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }

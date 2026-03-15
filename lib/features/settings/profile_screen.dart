@@ -58,6 +58,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
 
+    final avatarUrl = profile.avatar ?? AppConfig.avatarPresets.first;
+    final dobText = profile.dob.toLocal().toString().split(' ').first;
+
     // Modern dashboard profile
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -94,14 +97,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   CircleAvatar(
                     radius: 54,
                     backgroundColor: AppColors.emeraldLight,
-                    child: Text(
-                      profile.name.isNotEmpty ? profile.name[0] : '?',
-                      style: const TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.emeraldDark,
-                      ),
-                    ),
+                    backgroundImage: NetworkImage(avatarUrl),
                   ),
                 ],
               ),
@@ -135,6 +131,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: 'Year',
               value: '${profile.year}',
               icon: Icons.calendar_today_outlined,
+            ),
+            _InfoTile(
+              label: 'Email',
+              value: profile.email,
+              icon: Icons.email_outlined,
+            ),
+            _InfoTile(
+              label: 'Date of Birth',
+              value: dobText,
+              icon: Icons.cake_outlined,
             ),
             const SizedBox(height: 32),
             const _SectionHeader(title: 'ACCOUNT'),

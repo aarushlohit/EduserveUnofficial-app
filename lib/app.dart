@@ -5,6 +5,7 @@ import 'package:eduserveapp/core/constants/colors.dart';
 import 'package:eduserveapp/core/services/activity_log_service.dart';
 import 'package:eduserveapp/core/services/analytics_service.dart';
 import 'package:eduserveapp/core/services/app_stats_service.dart';
+import 'package:eduserveapp/core/services/hackathon_service.dart';
 import 'package:eduserveapp/core/services/firestore_user_service.dart';
 import 'package:eduserveapp/core/services/notification_center_service.dart';
 import 'package:eduserveapp/core/services/update_config_service.dart';
@@ -23,6 +24,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 class EduServeCompanionApp extends StatefulWidget {
   const EduServeCompanionApp({super.key});
@@ -60,6 +62,7 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
         await _safeRun(ActivityLogService.instance.cleanupLogsIfDue);
         await _safeRun(
             () => AppStatsService.instance.updateOnAppOpen(uid: _uid));
+        await _safeRun(HackathonService.instance.cleanupExpiredPosts);
       }
 
       await _safeRun(() async {
@@ -99,36 +102,66 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
     try {
       final info = await PackageInfo.fromPlatform();
       final installed = info.version;
-      final remote = await UpdateConfigService.instance
-          .getLatestVersion()
+
+      final config = await UpdateConfigService.instance
+          .getConfig()
           .timeout(const Duration(seconds: 8));
-      if (remote == null || !mounted) {
+      if (!mounted || config == null) {
         return;
       }
 
-      if (VersionUtils.isRemoteVersionNewer(
+      final remote = config.latestVersion;
+      final minSupported = config.minSupportedVersion;
+      if (remote == null || remote.isEmpty) {
+        return;
+      }
+
+      final hasNewer = VersionUtils.isRemoteVersionNewer(
         installed: installed,
         remote: remote,
-      )) {
-        await showDialog<void>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Update Available'),
-            content:
-                Text('Version $remote is available. You are on $installed.'),
-            actions: <Widget>[
+      );
+
+      final requiresUpgrade = minSupported != null &&
+          minSupported.isNotEmpty &&
+          VersionUtils.isRemoteVersionNewer(
+            installed: installed,
+            remote: minSupported,
+          );
+
+      if (!hasNewer && !requiresUpgrade) {
+        return;
+      }
+
+      final apkUrl = (config.apkUrl ?? '').trim();
+      final title = requiresUpgrade ? 'Update Required' : 'Update Available';
+      final body = requiresUpgrade
+          ? 'Version $minSupported or newer is required to continue. You are on $installed.'
+          : 'Version $remote is available. You are on $installed.';
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: !requiresUpgrade,
+        builder: (context) => AlertDialog(
+          title: Text(title),
+          content: Text(body),
+          actions: <Widget>[
+            if (!requiresUpgrade)
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('Later'),
               ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Update'),
-              ),
-            ],
-          ),
-        );
-      }
+            FilledButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                if (apkUrl.isNotEmpty) {
+                  await _launchUrl(apkUrl);
+                }
+              },
+              child: Text(apkUrl.isNotEmpty ? 'Download APK' : 'Update'),
+            ),
+          ],
+        ),
+      );
     } catch (_) {
       // Ignore remote update failures.
     }
@@ -216,6 +249,24 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
 
     if (mounted) {
       setState(() {});
+    }
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      return;
+    }
+
+    final launched = await launchUrlString(
+      url,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open download link.')),
+      );
     }
   }
 

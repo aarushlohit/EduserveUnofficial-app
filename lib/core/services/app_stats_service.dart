@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eduserveapp/core/constants/app_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppStatsService {
   AppStatsService._();
@@ -12,14 +13,46 @@ class AppStatsService {
       _firestore.collection(AppConfig.appStatsCollection).doc('global');
 
   Future<void> updateOnAppOpen({required String uid}) async {
-    final usersSnapshot =
-        await _firestore.collection(AppConfig.usersCollection).count().get();
-    final totalUsers = usersSnapshot.count ?? 0;
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    final todayKey = '${now.year}-${now.month}-${now.day}';
+
+    final statsSnap = await _statsRef.get();
+    final statsData = statsSnap.data() ?? <String, dynamic>{};
+    final storedDay = statsData['activeUsersDate'] as String?;
+    if (storedDay != todayKey) {
+      await _statsRef.set(
+        <String, dynamic>{
+          'activeUsersToday': 0,
+          'activeUsersDate': todayKey,
+        },
+        SetOptions(merge: true),
+      );
+    }
+
+    final lastActiveDay = prefs.getString(AppConfig.lastActiveDayKey);
+    final shouldCountActiveToday = lastActiveDay != todayKey;
+    if (shouldCountActiveToday) {
+      await prefs.setString(AppConfig.lastActiveDayKey, todayKey);
+    }
+
+    int? totalUsers;
+    final lastUserCountDay = prefs.getString(AppConfig.lastUserCountDayKey);
+    final shouldRefreshUserCount = lastUserCountDay != todayKey;
+    if (shouldRefreshUserCount) {
+      final usersSnapshot =
+          await _firestore.collection(AppConfig.usersCollection).count().get();
+      totalUsers = usersSnapshot.count ?? 0;
+      await prefs.setString(AppConfig.lastUserCountDayKey, todayKey);
+    }
 
     await _statsRef.set(
       <String, dynamic>{
-        'totalUsers': totalUsers,
+        if (totalUsers != null) 'totalUsers': totalUsers,
         'appOpens': FieldValue.increment(1),
+        if (shouldCountActiveToday)
+          'activeUsersToday': FieldValue.increment(1),
+        'activeUsersDate': todayKey,
         'lastOpenUid': uid,
         'lastUpdatedAt': FieldValue.serverTimestamp(),
       },

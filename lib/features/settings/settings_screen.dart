@@ -1,4 +1,6 @@
 import 'package:eduserveapp/features/settings/theme_controller.dart';
+import 'package:eduserveapp/features/settings/privacy_policy_screen.dart';
+import 'package:eduserveapp/features/settings/terms_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -136,17 +138,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 6),
           const _SectionHeader('Legal'),
-          const _SectionCard(
+          _SectionCard(
             child: Column(
               children: <Widget>[
                 ListTile(
-                  leading: Icon(Icons.description_outlined),
-                  title: Text('Terms and Conditions'),
+                  leading: const Icon(Icons.description_outlined),
+                  title: const Text('Terms and Conditions'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const TermsScreen(),
+                    ),
+                  ),
                 ),
-                Divider(height: 1),
+                const Divider(height: 1),
                 ListTile(
-                  leading: Icon(Icons.privacy_tip_outlined),
-                  title: Text('Privacy Policy'),
+                  leading: const Icon(Icons.privacy_tip_outlined),
+                  title: const Text('Privacy Policy'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const PrivacyPolicyScreen(),
+                    ),
+                  ),
                 ),
               ],
             ),

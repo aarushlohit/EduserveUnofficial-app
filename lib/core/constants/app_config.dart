@@ -72,6 +72,7 @@ class AppConfig {
   static const String updateVersionField = 'latestVersion';
   static const String updateMinSupportedField = 'minSupportedVersion';
   static const String updateUpdatedAtField = 'updatedAt';
+  static const String updateApkUrlField = 'apkUrl';
 
     static const String usersCollection = 'users';
     static const String notificationsCollection = 'notifications';
@@ -82,8 +83,19 @@ class AppConfig {
     static const String notificationLastSeenKey = 'notifications_last_seen_ms';
     static const String dailyCleanupLastRunKey = 'daily_cleanup_last_run';
     static const String localGreetingFeedKey = 'local_greeting_feed';
+    static const String lastActiveDayKey = 'last_active_day';
+    static const String lastUserCountDayKey = 'last_user_count_day';
 
     // Optional relay endpoint to send topic notifications from trusted backend.
     // Keep empty in client-only mode.
     static const String topicPushRelayEndpoint = '';
+
+    // Avatar presets for onboarding selection.
+    static const List<String> avatarPresets = <String>[
+      'https://api.dicebear.com/8.x/thumbs/svg?seed=aurora',
+      'https://api.dicebear.com/8.x/thumbs/svg?seed=cosmo',
+      'https://api.dicebear.com/8.x/thumbs/svg?seed=ember',
+      'https://api.dicebear.com/8.x/thumbs/svg?seed=zephyr',
+      'https://api.dicebear.com/8.x/thumbs/svg?seed=solstice',
+    ];
 }

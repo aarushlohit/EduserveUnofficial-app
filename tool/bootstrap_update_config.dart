@@ -18,6 +18,7 @@ Future<void> main() async {
     <String, dynamic>{
       AppConfig.updateVersionField: '1.0.0',
       AppConfig.updateMinSupportedField: '1.0.0',
+      AppConfig.updateApkUrlField: '',
       AppConfig.updateUpdatedAtField: FieldValue.serverTimestamp(),
     },
     SetOptions(merge: true),

@@ -34,6 +34,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   DateTime? _dob;
   String? _department;
   int? _year;
+  String _selectedAvatar = AppConfig.avatarPresets.first;
   bool _saving = false;
   bool _introLoading = true;
   _AuthStage _stage = _AuthStage.choice;
@@ -151,6 +152,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               year: _year!,
               dob: _dob!,
               age: age,
+              avatar: _selectedAvatar,
               role: 'user',
             )
             .timeout(const Duration(seconds: 8));
@@ -631,11 +633,70 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   validator: (value) =>
                                       value == null ? 'Select year' : null,
                                 ),
+                                const SizedBox(height: 14),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'Choose an avatar',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelLarge
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 10,
+                                  runSpacing: 10,
+                                  children: AppConfig.avatarPresets.map((url) {
+                                    final selected = url == _selectedAvatar;
+                                    return GestureDetector(
+                                      onTap: () => setState(() => _selectedAvatar = url),
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 180),
+                                        padding: const EdgeInsets.all(3),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(999),
+                                          border: Border.all(
+                                            color: selected
+                                                ? Theme.of(context).colorScheme.primary
+                                                : Colors.grey.withValues(alpha: 0.4),
+                                            width: selected ? 2 : 1,
+                                          ),
+                                          boxShadow: selected
+                                              ? [
+                                                  BoxShadow(
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .primary
+                                                        .withValues(alpha: 0.2),
+                                                    blurRadius: 8,
+                                                  ),
+                                                ]
+                                              : null,
+                                        ),
+                                        child: CircleAvatar(
+                                          radius: 26,
+                                          backgroundImage: NetworkImage(url),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                                const SizedBox(height: 12),
                               ],
                             ),
                           ),
                         ),
                         const SizedBox(height: 20),
+                        Text(
+                          'By continuing you agree to the Terms and Conditions and Privacy Policy.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: Colors.grey.shade700),
+                        ),
+                        const SizedBox(height: 12),
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton(

@@ -45,6 +45,16 @@ class NotificationCenterService {
     await prefs.setString(AppConfig.localGreetingFeedKey, jsonEncode(updated));
   }
 
+  Future<void> removeAt(int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    final current = await getGreetingFeed();
+    if (index < 0 || index >= current.length) {
+      return;
+    }
+    current.removeAt(index);
+    await prefs.setString(AppConfig.localGreetingFeedKey, jsonEncode(current));
+  }
+
   Future<DateTime> _lastSeen() async {
     final prefs = await SharedPreferences.getInstance();
     final ms = prefs.getInt(AppConfig.notificationLastSeenKey);

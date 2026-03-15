@@ -23,6 +23,7 @@ class ActivityLogService {
     await _firestore.collection(AppConfig.userActivityCollection).add(<String, dynamic>{
       'uid': uid,
       'name': profile?.name ?? 'Unknown User',
+      'email': profile?.email ?? '',
       'action': action,
       'tab': tab,
       'timestamp': FieldValue.serverTimestamp(),

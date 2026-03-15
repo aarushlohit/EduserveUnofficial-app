@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eduserveapp/core/constants/app_config.dart';
 import 'package:eduserveapp/core/services/activity_log_service.dart';
@@ -37,6 +39,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       action: 'open_admin_dashboard',
       tab: 'admin',
     );
+
+    unawaited(HackathonService.instance.cleanupExpiredPosts());
   }
 
   Future<void> _createPost() async {
@@ -145,6 +149,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 physics: const NeverScrollableScrollPhysics(),
                 childAspectRatio: 1.35,
                 children: <Widget>[
+                  _StatCard(
+                    label: 'Active Users Today',
+                    value: '${(data['activeUsersToday'] ?? 0)}',
+                  ),
                   _StatCard(
                     label: 'Total Users',
                     value: '${(data['totalUsers'] ?? 0)}',
