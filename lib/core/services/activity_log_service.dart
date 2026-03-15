@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eduserveapp/core/constants/app_config.dart';
 import 'package:eduserveapp/core/services/firestore_user_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:math';
 
 class ActivityLogService {
   ActivityLogService._();
@@ -9,6 +11,10 @@ class ActivityLogService {
   static final ActivityLogService instance = ActivityLogService._();
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final Map<String, StudentProfile?> _profileCache = <String, StudentProfile?>{};
+  DateTime _lastConfigFetch = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _cachedEnabled = true;
+  int _cachedThreshold = 100;
 
   Future<void> logCurrentUserAction({
     required String uid,
@@ -19,15 +25,68 @@ class ActivityLogService {
       return;
     }
 
-    final profile = await FirestoreUserService.instance.getUserById(uid);
+    final shouldLog = await _shouldLog();
+    if (!shouldLog) {
+      debugPrint('[activity] logging disabled, skip action=$action');
+      return;
+    }
+
+    debugPrint('[activity] log uid=$uid action=$action tab=$tab');
+
+    final cached = _profileCache[uid];
+    final profile = cached ?? await FirestoreUserService.instance.getUserById(uid);
+    _profileCache[uid] = profile;
     await _firestore.collection(AppConfig.userActivityCollection).add(<String, dynamic>{
       'uid': uid,
       'name': profile?.name ?? 'Unknown User',
       'email': profile?.email ?? '',
+      'registerNumber': profile?.registerNumber ?? '',
+      'dept': profile?.dept ?? '',
+      'year': profile?.year ?? '',
+      'gender': profile?.gender ?? '',
+      'role': profile?.role ?? 'user',
       'action': action,
       'tab': tab,
       'timestamp': FieldValue.serverTimestamp(),
     });
+
+    debugPrint('[activity] wrote log for uid=$uid');
+  }
+
+  Future<bool> _shouldLog() async {
+    final now = DateTime.now();
+    if (now.difference(_lastConfigFetch) < const Duration(minutes: 5)) {
+      return _sampleAllowed();
+    }
+
+    try {
+      final doc = await _firestore
+          .collection(AppConfig.analyticsConfigCollection)
+          .doc(AppConfig.analyticsLoggingDoc)
+          .get();
+      final data = doc.data();
+      _cachedEnabled = (data?['enabled'] as bool?) ?? true;
+      _cachedThreshold = (data?['thresholdPercent'] as num?)?.toInt() ?? 100;
+      _cachedThreshold = _cachedThreshold.clamp(0, 100);
+      _lastConfigFetch = now;
+      debugPrint('[activity] logging config enabled=$_cachedEnabled threshold=$_cachedThreshold');
+    } catch (e) {
+      debugPrint('[activity] logging config fetch failed, defaulting to enabled. $e');
+      _cachedEnabled = true;
+      _cachedThreshold = 100;
+      _lastConfigFetch = now;
+    }
+
+    return _sampleAllowed();
+  }
+
+  bool _sampleAllowed() {
+    if (!_cachedEnabled) return false;
+    if (_cachedThreshold >= 100) return true;
+    final roll = Random().nextInt(100) + 1;
+    final allowed = roll <= _cachedThreshold;
+    debugPrint('[activity] sample roll=$roll threshold=$_cachedThreshold allowed=$allowed');
+    return allowed;
   }
 
   Future<void> cleanupLogsIfDue() async {

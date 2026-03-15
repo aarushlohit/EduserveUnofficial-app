@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:eduserveapp/core/constants/app_config.dart';
 import 'package:eduserveapp/core/constants/colors.dart';
 import 'package:eduserveapp/core/services/analytics_service.dart';
+import 'package:eduserveapp/core/services/app_stats_service.dart';
 import 'package:eduserveapp/core/services/firestore_user_service.dart';
 import 'package:eduserveapp/core/services/notification_center_service.dart';
 import 'package:eduserveapp/core/services/notification_service.dart';
@@ -185,6 +186,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       } catch (_) {
         syncedToCloud = false;
       }
+
+      // Track global user count once per successful signup.
+      await AppStatsService.instance.incrementTotalUsers();
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(AppConfig.onboardingCompleteKey, true);

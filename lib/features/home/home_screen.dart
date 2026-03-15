@@ -1,8 +1,12 @@
 import 'dart:ui';
 
 import 'package:eduserveapp/core/constants/colors.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eduserveapp/core/services/firestore_user_service.dart';
 import 'package:eduserveapp/core/services/notification_center_service.dart';
+import 'package:eduserveapp/core/constants/app_config.dart';
+import 'package:eduserveapp/core/services/post_service.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 import 'package:flutter/material.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -144,8 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 12),
                   _buildQuickAccessGrid(context),
                   const SizedBox(height: 24),
-                  
-                  const SizedBox(height: 12),
+                  _NewsFeed(),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -287,6 +290,130 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
  
+}
+
+class _NewsFeed extends StatelessWidget {
+  _NewsFeed({super.key});
+
+  final ValueNotifier<bool> _expanded = ValueNotifier<bool>(false);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'News & Hackathons',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection(AppConfig.postsCollection)
+              .orderBy('createdAt', descending: true)
+              .limit(20)
+              .snapshots(),
+          builder: (context, snapshot) {
+            final allDocs = snapshot.data?.docs ?? <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+            final docs = allDocs.where((d) => d.data()['isDraft'] != true).toList();
+            if (docs.isEmpty) {
+              return const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No announcements yet.'),
+                ),
+              );
+            }
+
+            return ValueListenableBuilder<bool>(
+              valueListenable: _expanded,
+              builder: (context, expanded, _) {
+                final visible = expanded ? docs : docs.take(5).toList();
+                return Column(
+                  children: [
+                    ...visible.map((doc) {
+                      final data = doc.data();
+                      final title = (data['title'] as String?) ?? 'Announcement';
+                      final description = (data['description'] as String?) ?? '';
+                      final link = (data['link'] as String?) ?? '';
+                      final imageUrl = (data['imageUrl'] as String?) ?? '';
+                      final ts = data['createdAt'];
+                      final when = ts is Timestamp
+                          ? '${ts.toDate().toLocal().toIso8601String().split('T').first}'
+                          : '-';
+
+                      final subtitleLines = <String>[
+                        description,
+                        if (link.isNotEmpty) link,
+                        'Posted: $when',
+                      ]..removeWhere((e) => e.trim().isEmpty);
+
+                      return Card(
+                        child: InkWell(
+                          onTap: link.isNotEmpty
+                              ? () async {
+                                  final ok = await launchUrlString(link,
+                                      mode: LaunchMode.externalApplication);
+                                  if (!ok && context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Could not open link')),
+                                    );
+                                  }
+                                }
+                              : null,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (imageUrl.isNotEmpty)
+                                ClipRRect(
+                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                  child: AspectRatio(
+                                    aspectRatio: 16 / 9,
+                                    child: Image.network(
+                                      imageUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        color: Theme.of(context).colorScheme.surfaceVariant,
+                                        alignment: Alignment.center,
+                                        child: const Icon(Icons.broken_image_outlined),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ListTile(
+                                leading: const Icon(Icons.campaign_outlined),
+                                title: Text(title),
+                                subtitle: Text(subtitleLines.join('\n')),
+                                trailing: link.isNotEmpty
+                                    ? const Icon(Icons.open_in_new, size: 18)
+                                    : null,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                    if (docs.length > 5)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: TextButton.icon(
+                          onPressed: () => _expanded.value = !expanded,
+                          icon: Icon(expanded ? Icons.expand_less : Icons.expand_more),
+                          label: Text(expanded ? 'Show less' : 'Read more'),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
 }
 
 class _DashboardCard extends StatelessWidget {

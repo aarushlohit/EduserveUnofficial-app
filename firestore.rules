@@ -2,10 +2,51 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'abhimanyu_dev@karunya.edu.in';
+    }
 
     match /users/{userId} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
+      allow read: if isSignedIn() && request.auth.uid == userId || isAdmin();
+      allow write: if isSignedIn() && request.auth.uid == userId || isAdmin();
+    }
+
+    // Activity logs: signed-in users write; admin reads for dashboard.
+    match /user_activity/{logId} {
+      allow create: if isSignedIn();
+      allow read: if isAdmin();
+    }
+
+    // Daily analytics (app opens, tab opens).
+    match /analytics_daily/{dayId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Global analytics (active users today, total users, ai messages).
+    match /analytics_global/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Analytics configuration (logging toggles, sampling thresholds).
+    match /analytics_config/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Hackathons: everyone reads, only admin writes.
+    match /hackathons/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Posts: everyone reads (user feed), only admin writes.
+    match /posts/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
   }

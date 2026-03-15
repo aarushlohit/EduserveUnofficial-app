@@ -79,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Theme.of(context).appBarTheme.foregroundColor),
+          icon: Icon(Icons.arrow_back, color: Theme.of(context).appBarTheme.foregroundColor),
           onPressed: () => Navigator.of(context).pop(),
         ),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,

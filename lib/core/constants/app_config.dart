@@ -79,6 +79,12 @@ class AppConfig {
     static const String hackathonsCollection = 'hackathons';
     static const String userActivityCollection = 'user_activity';
     static const String appStatsCollection = 'app_stats';
+    static const String analyticsDailyCollection = 'analytics_daily';
+    static const String analyticsGlobalCollection = 'analytics_global';
+    static const String analyticsGlobalDoc = 'app_stats';
+    static const String analyticsConfigCollection = 'analytics_config';
+    static const String analyticsLoggingDoc = 'logging';
+    static const String postsCollection = 'posts';
 
     static const String notificationLastSeenKey = 'notifications_last_seen_ms';
     static const String dailyCleanupLastRunKey = 'daily_cleanup_last_run';
