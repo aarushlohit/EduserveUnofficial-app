@@ -13,17 +13,11 @@ class AdminDashboardScreen extends StatefulWidget {
     super.key,
     required this.uid,
     required this.themeController,
-    required this.onCheckUpdates,
-    required this.onOpenProfile,
-    required this.onBootstrapUpdateConfig,
     required this.onLogout,
   });
 
   final String uid;
   final ThemeController themeController;
-  final Future<void> Function() onCheckUpdates;
-  final Future<void> Function() onOpenProfile;
-  final Future<void> Function() onBootstrapUpdateConfig;
   final Future<void> Function() onLogout;
 
   @override
@@ -107,19 +101,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             tooltip: 'Create post',
           ),
           IconButton(
-            onPressed: widget.onOpenProfile,
-            icon: const Icon(Icons.person_outline),
-            tooltip: 'Profile',
-          ),
-          IconButton(
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => SettingsScreen(
                     themeController: widget.themeController,
-                    onCheckUpdates: widget.onCheckUpdates,
-                    onOpenProfile: widget.onOpenProfile,
-                    onBootstrapUpdateConfig: widget.onBootstrapUpdateConfig,
                     onLogout: widget.onLogout,
                   ),
                 ),
@@ -230,7 +216,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             tooltip: 'Edit',
                           ),
                           IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                            icon: const Icon(Icons.delete_outline, color: Color(0xFF38BDF8)),
                             tooltip: 'Delete',
                             onPressed: () async {
                               await HackathonService.instance.deletePost(doc.id);

@@ -12,6 +12,7 @@ class StudentProfile {
     this.age,
     this.role = 'user',
     this.avatar,
+    this.phone,
   });
 
   final String uid;
@@ -23,6 +24,7 @@ class StudentProfile {
   final int? age;
   final String role;
   final String? avatar;
+  final String? phone;
 }
 
 class FirestoreUserService {
@@ -42,6 +44,7 @@ class FirestoreUserService {
     required DateTime dob,
     int? age,
     String? avatar,
+    String? phone,
     String role = 'user',
   }) async {
     final resolvedRole =
@@ -57,6 +60,7 @@ class FirestoreUserService {
         'age': age,
         'role': resolvedRole,
         if (avatar != null) 'avatar': avatar,
+        if (phone != null) 'phone': phone,
         'updatedAt': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
       },
@@ -89,6 +93,7 @@ class FirestoreUserService {
       age: (data['age'] as num?)?.toInt(),
       role: (data['role'] as String?) ?? 'user',
       avatar: data['avatar'] as String?,
+        phone: data['phone'] as String?,
     );
   }
 }

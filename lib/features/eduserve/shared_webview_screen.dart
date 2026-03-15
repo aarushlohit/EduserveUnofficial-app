@@ -147,12 +147,7 @@ class _SharedWebViewScreenState extends State<SharedWebViewScreen> {
       // If redirected to login, session has likely expired.
       // Optionally notify parent or show snackbar.
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Your session has expired. Please log in again.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
+        
       }
     }
   }

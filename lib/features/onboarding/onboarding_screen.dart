@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:eduserveapp/core/constants/app_config.dart';
+import 'package:eduserveapp/core/constants/colors.dart';
 import 'package:eduserveapp/core/services/analytics_service.dart';
 import 'package:eduserveapp/core/services/firestore_user_service.dart';
 import 'package:eduserveapp/core/services/notification_center_service.dart';
@@ -25,8 +26,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _signupPasswordController = TextEditingController();
   final _ageController = TextEditingController();
+
   final _loginFormKey = GlobalKey<FormState>();
   final _loginEmailController = TextEditingController();
   final _loginPasswordController = TextEditingController();
@@ -34,24 +37,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   DateTime? _dob;
   String? _department;
   int? _year;
-  String _selectedAvatar = AppConfig.avatarPresets.first;
+
   bool _saving = false;
   bool _introLoading = true;
-  _AuthStage _stage = _AuthStage.choice;
   bool _showSuccess = false;
   bool _finalizing = false;
   bool _signupSyncedToCloud = false;
 
+  _AuthStage _stage = _AuthStage.choice;
+
   static const List<String> _departments = <String>[
-    'CSE',
+    'AI/ML',
+    'Cybersecurity',
+    'DSCS',
+    'Agri',
     'ECE',
-    'EEE',
+    'CSE',
     'IT',
-    'Mechanical',
+    'Mech',
     'Civil',
+    'EEE',
     'Biotech',
-    'MBA',
+    'AIDS',
     'BSc',
+    'Food Processing',
+    'B.E',
     'Other',
   ];
 
@@ -61,22 +71,41 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _showIntroLoader();
   }
 
-  Future<void> _showIntroLoader() async {
-    await Future<void>.delayed(const Duration(milliseconds: 650));
-    if (mounted) {
-      setState(() => _introLoading = false);
-    }
+  BoxDecoration _heroDecoration() {
+    return BoxDecoration(
+      gradient: const LinearGradient(
+        colors: <Color>[AppColors.emeraldPrimary, AppColors.emeraldDark],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: <BoxShadow>[
+        BoxShadow(
+          color: AppColors.emeraldPrimary.withValues(alpha: 0.24),
+          blurRadius: 18,
+          offset: const Offset(0, 10),
+        ),
+      ],
+    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _signupPasswordController.dispose();
     _ageController.dispose();
     _loginEmailController.dispose();
     _loginPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _showIntroLoader() async {
+    await Future<void>.delayed(const Duration(milliseconds: 650));
+    if (mounted) {
+      setState(() => _introLoading = false);
+    }
   }
 
   Future<void> _pickDob() async {
@@ -94,16 +123,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _submit() async {
     if (_saving) {
-      debugPrint('[onboarding] Submit ignored: already saving');
       return;
     }
 
-    debugPrint('[onboarding] Submit clicked');
-    if (!_formKey.currentState!.validate() ||
-        _dob == null ||
-        _department == null ||
-        _year == null) {
-      debugPrint('[onboarding] Validation failed');
+    final validForm = _formKey.currentState?.validate() ?? false;
+    if (!validForm || _dob == null || _department == null || _year == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please complete all fields')),
       );
@@ -116,7 +140,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       final age = int.parse(_ageController.text.trim());
       final password = _signupPasswordController.text.trim();
 
-      debugPrint('[onboarding] Creating Firebase Auth account for $email');
       late final UserCredential credential;
       try {
         credential = await FirebaseAuth.instance
@@ -124,7 +147,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             .timeout(const Duration(seconds: 10));
       } on FirebaseAuthException catch (e) {
         if (e.code == 'email-already-in-use') {
-          if (!mounted) return;
+          if (!mounted) {
+            return;
+          }
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Email already registered. Please use Login.'),
@@ -139,7 +164,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       if (uid == null || uid.isEmpty) {
         throw Exception('Unable to resolve authenticated user ID.');
       }
-      debugPrint('[onboarding] Saving profile for uid=$uid');
 
       var syncedToCloud = false;
       try {
@@ -148,26 +172,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               uid: uid,
               name: _nameController.text.trim(),
               email: email,
+              phone: _phoneController.text.trim(),
               dept: _department!,
               year: _year!,
               dob: _dob!,
               age: age,
-              avatar: _selectedAvatar,
+              avatar: AppConfig.avatarPresets.first,
               role: 'user',
             )
             .timeout(const Duration(seconds: 8));
         syncedToCloud = true;
-        debugPrint('[onboarding] Firestore profile save success');
-      } catch (e) {
-        debugPrint(
-          '[onboarding] Firestore profile sync failed, fallback to local completion: $e',
-        );
+      } catch (_) {
+        syncedToCloud = false;
       }
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(AppConfig.onboardingCompleteKey, true);
       await prefs.setString(AppConfig.profileDocIdKey, uid);
       await prefs.setBool(AppConfig.profileSyncPendingKey, !syncedToCloud);
+
       final greeting =
           AppConfig.loginGreetings[Random().nextInt(AppConfig.loginGreetings.length)];
       await NotificationCenterService.instance.appendLoginGreeting(greeting);
@@ -176,25 +199,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         title: 'Welcome',
         body: greeting,
       );
-      debugPrint('[onboarding] Local onboarding flags saved');
 
       await AnalyticsService.instance.logSignupCompleted();
-      debugPrint('[onboarding] signup_completed analytics logged');
 
       if (!mounted) {
         return;
       }
+
       setState(() {
         _signupSyncedToCloud = syncedToCloud;
         _showSuccess = true;
       });
     } catch (e) {
-      debugPrint('[onboarding] Submit failed: $e');
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_friendlySignupError(e)),
-        ),
+        SnackBar(content: Text(_friendlySignupError(e))),
       );
     } finally {
       if (mounted) {
@@ -204,8 +225,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _submitLogin() async {
-    if (_saving) return;
-    if (!_loginFormKey.currentState!.validate()) {
+    if (_saving) {
+      return;
+    }
+
+    final validForm = _loginFormKey.currentState?.validate() ?? false;
+    if (!validForm) {
       return;
     }
 
@@ -226,6 +251,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(AppConfig.onboardingCompleteKey, true);
       await prefs.setString(AppConfig.profileDocIdKey, uid);
+
       final greeting =
           AppConfig.loginGreetings[Random().nextInt(AppConfig.loginGreetings.length)];
       await NotificationCenterService.instance.appendLoginGreeting(greeting);
@@ -234,15 +260,40 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         title: 'Welcome',
         body: greeting,
       );
+
       await widget.onCompleted();
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_friendlyLoginError(e))),
       );
     } finally {
       if (mounted) {
         setState(() => _saving = false);
+      }
+    }
+  }
+
+  Future<void> _finishOnboarding() async {
+    if (_finalizing) {
+      return;
+    }
+
+    setState(() => _finalizing = true);
+    try {
+      await widget.onCompleted().timeout(const Duration(seconds: 10));
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Almost done. Please tap continue again.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _finalizing = false);
       }
     }
   }
@@ -278,113 +329,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return 'Login failed. Please try again.';
   }
 
-  Future<void> _finishOnboarding() async {
-    if (_finalizing) return;
-    debugPrint('[onboarding] Success continue pressed');
-
-    setState(() => _finalizing = true);
-    try {
-      await widget.onCompleted().timeout(const Duration(seconds: 10));
-      debugPrint('[onboarding] Parent completion callback success');
-    } catch (e) {
-      debugPrint('[onboarding] Parent completion callback failed: $e');
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Almost done. Please tap continue again.')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _finalizing = false);
-      }
-    }
-  }
-
-  Widget _buildSuccessPage(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      const CircleAvatar(
-                        radius: 34,
-                        backgroundColor: Color(0xFF111111),
-                        child: Icon(Icons.check_rounded,
-                            color: Colors.white, size: 34),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Signup Successful',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Your profile is ready. Continue to your dashboard.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _signupSyncedToCloud
-                            ? 'Cloud sync completed successfully.'
-                            : 'Cloud sync unavailable. Profile saved locally and will sync later.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 20),
-                      const Divider(height: 1),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: _finalizing ? null : _finishOnboarding,
-                          icon: _finalizing
-                              ? const SizedBox(
-                                  height: 18,
-                                  width: 18,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.arrow_forward_rounded),
-                          label: Text(
-                            _finalizing ? 'Please wait...' : 'Go to Dashboard',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_introLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_showSuccess) {
@@ -399,6 +347,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       return _buildLoginPage(context);
     }
 
+    return _buildSignupPage(context);
+  }
+
+  Widget _buildSignupPage(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -417,59 +369,61 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Row(
-                          children: <Widget>[
-                            Container(
-                              height: 42,
-                              width: 42,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF111111),
-                                borderRadius: BorderRadius.circular(12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(18),
+                          decoration: _heroDecoration(),
+                          child: const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                'Create your account',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
-                              child: const Icon(Icons.school_outlined,
-                                  color: Colors.white),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Fast Signup',
-                                style: Theme.of(context).textTheme.titleLarge,
+                              SizedBox(height: 6),
+                              Text(
+                                'Quick signup with your KMail to start using EduServe tools.',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Welcome to EduServe Companion',
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Create your student profile to continue.',
-                          style: Theme.of(context).textTheme.bodyMedium,
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 14),
-                        Wrap(
+                        const Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: const <Widget>[
+                          children: <Widget>[
                             _InfoChip(label: '2 min'),
                             _InfoChip(label: 'One-time setup'),
-                            _InfoChip(label: 'Editable later'),
                           ],
                         ),
                         const SizedBox(height: 20),
                         Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color:
-                                Theme.of(context).brightness == Brightness.dark
-                                    ? const Color(0xFF141414)
-                                    : const Color(0xFFF8F8F8),
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? AppColors.emeraldDark.withValues(alpha: 0.20)
+                                : Colors.white,
+                            border: Border.all(
+                              color: AppColors.emeraldPrimary.withValues(alpha: 0.22),
+                            ),
                             borderRadius: BorderRadius.circular(14),
+                            boxShadow: Theme.of(context).brightness == Brightness.dark
+                                ? null
+                                : <BoxShadow>[
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.05),
+                                      blurRadius: 14,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
                           ),
                           child: AutofillGroup(
                             child: Column(
@@ -477,27 +431,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 TextFormField(
                                   controller: _nameController,
                                   textInputAction: TextInputAction.next,
-                                  autofillHints: const <String>[
-                                    AutofillHints.name
-                                  ],
+                                  autofillHints: const <String>[AutofillHints.name],
                                   autovalidateMode:
                                       AutovalidateMode.onUserInteraction,
                                   decoration: const InputDecoration(
                                     labelText: 'Name',
                                     prefixIcon: Icon(Icons.person_outline),
                                   ),
-                                  validator: (value) =>
-                                      (value == null || value.trim().isEmpty)
-                                          ? 'Enter your name'
-                                          : null,
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return 'Enter your name';
+                                    }
+                                    return null;
+                                  },
                                 ),
                                 const SizedBox(height: 12),
                                 TextFormField(
                                   controller: _emailController,
                                   textInputAction: TextInputAction.next,
-                                  autofillHints: const <String>[
-                                    AutofillHints.email
-                                  ],
+                                  autofillHints: const <String>[AutofillHints.email],
                                   autovalidateMode:
                                       AutovalidateMode.onUserInteraction,
                                   decoration: const InputDecoration(
@@ -506,13 +458,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   ),
                                   keyboardType: TextInputType.emailAddress,
                                   validator: (value) {
-                                    final email = value?.trim() ?? '';
+                                    final email = value?.trim().toLowerCase() ?? '';
                                     if (email.isEmpty) {
                                       return 'Enter your KMail';
                                     }
-                                    if (!email
-                                        .endsWith(AppConfig.kmailDomain)) {
+                                    if (!email.endsWith(AppConfig.kmailDomain)) {
                                       return 'Email must end with ${AppConfig.kmailDomain}';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: _phoneController,
+                                  textInputAction: TextInputAction.next,
+                                  keyboardType: TextInputType.phone,
+                                  autovalidateMode:
+                                      AutovalidateMode.onUserInteraction,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Phone',
+                                    prefixIcon: Icon(Icons.phone_outlined),
+                                  ),
+                                  validator: (value) {
+                                    final phone = (value ?? '').trim();
+                                    if (phone.isEmpty) {
+                                      return 'Enter your phone number';
                                     }
                                     return null;
                                   },
@@ -526,7 +496,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                       AutovalidateMode.onUserInteraction,
                                   decoration: const InputDecoration(
                                     labelText: 'Password',
-                                    hintText: 'enter Seraph Password !!',
                                     prefixIcon: Icon(Icons.lock_outline),
                                   ),
                                   validator: (value) {
@@ -567,7 +536,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                     onTap: _pickDob,
                                     child: Ink(
                                       padding: const EdgeInsets.symmetric(
-                                          vertical: 14, horizontal: 12),
+                                        vertical: 14,
+                                        horizontal: 12,
+                                      ),
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(
@@ -607,11 +578,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                         ),
                                       )
                                       .toList(),
-                                  onChanged: (value) =>
-                                      setState(() => _department = value),
-                                  validator: (value) => value == null
-                                      ? 'Select department'
-                                      : null,
+                                  onChanged: (value) {
+                                    setState(() => _department = value);
+                                  },
+                                  validator: (value) {
+                                    if (value == null) {
+                                      return 'Select department';
+                                    }
+                                    return null;
+                                  },
                                 ),
                                 const SizedBox(height: 12),
                                 DropdownButtonFormField<int>(
@@ -620,7 +595,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                     labelText: 'Year',
                                     prefixIcon: Icon(Icons.school_outlined),
                                   ),
-                                  items: List<int>.generate(5, (i) => i + 1)
+                                  items: List<int>.generate(4, (i) => i + 1)
                                       .map(
                                         (year) => DropdownMenuItem<int>(
                                           value: year,
@@ -628,62 +603,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                         ),
                                       )
                                       .toList(),
-                                  onChanged: (value) =>
-                                      setState(() => _year = value),
-                                  validator: (value) =>
-                                      value == null ? 'Select year' : null,
+                                  onChanged: (value) {
+                                    setState(() => _year = value);
+                                  },
+                                  validator: (value) {
+                                    if (value == null) {
+                                      return 'Select year';
+                                    }
+                                    return null;
+                                  },
                                 ),
-                                const SizedBox(height: 14),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    'Choose an avatar',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelLarge
-                                        ?.copyWith(fontWeight: FontWeight.w700),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                Wrap(
-                                  spacing: 10,
-                                  runSpacing: 10,
-                                  children: AppConfig.avatarPresets.map((url) {
-                                    final selected = url == _selectedAvatar;
-                                    return GestureDetector(
-                                      onTap: () => setState(() => _selectedAvatar = url),
-                                      child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 180),
-                                        padding: const EdgeInsets.all(3),
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(999),
-                                          border: Border.all(
-                                            color: selected
-                                                ? Theme.of(context).colorScheme.primary
-                                                : Colors.grey.withValues(alpha: 0.4),
-                                            width: selected ? 2 : 1,
-                                          ),
-                                          boxShadow: selected
-                                              ? [
-                                                  BoxShadow(
-                                                    color: Theme.of(context)
-                                                        .colorScheme
-                                                        .primary
-                                                        .withValues(alpha: 0.2),
-                                                    blurRadius: 8,
-                                                  ),
-                                                ]
-                                              : null,
-                                        ),
-                                        child: CircleAvatar(
-                                          radius: 26,
-                                          backgroundImage: NetworkImage(url),
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                                const SizedBox(height: 12),
                               ],
                             ),
                           ),
@@ -705,33 +634,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 ? const SizedBox(
                                     height: 20,
                                     width: 20,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2),
+                                    child: CircularProgressIndicator(strokeWidth: 2),
                                   )
                                 : const Text('Complete Signup'),
                           ),
                         ),
                         const SizedBox(height: 10),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: _saving
-                                    ? null
-                                    : () => setState(
-                                        () => _stage = _AuthStage.choice),
-                                child: const Text('Back'),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Tip: Use your official KMail for profile syncing.',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: Colors.grey.shade600),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: _saving
+                                ? null
+                                : () => setState(() => _stage = _AuthStage.choice),
+                            child: const Text('Back'),
+                          ),
                         ),
                       ],
                     ),
@@ -763,24 +679,50 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(18),
+                        decoration: _heroDecoration(),
+                        child: const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              'Welcome',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              'Sign in or create an account to continue.',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       Text(
-                        'Welcome',
+                        'Continue',
                         style: Theme.of(context)
                             .textTheme
-                            .headlineSmall
+                            .titleLarge
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Choose how you want to continue.',
+                        'Choose your preferred method.',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 20),
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
-                          onPressed: () =>
-                              setState(() => _stage = _AuthStage.signup),
+                          onPressed: () => setState(() => _stage = _AuthStage.signup),
                           icon: const Icon(Icons.person_add_alt_1),
                           label: const Text('Create Account (Signup)'),
                         ),
@@ -789,8 +731,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
-                          onPressed: () =>
-                              setState(() => _stage = _AuthStage.login),
+                          onPressed: () => setState(() => _stage = _AuthStage.login),
                           icon: const Icon(Icons.login),
                           label: const Text('Login'),
                         ),
@@ -825,11 +766,38 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(18),
+                          decoration: _heroDecoration(),
+                          child: const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                'Sign in',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              SizedBox(height: 6),
+                              Text(
+                                'Use your KMail credentials to access your dashboard.',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         Text(
-                          'Login',
+                          'Welcome back',
                           style: Theme.of(context)
                               .textTheme
-                              .headlineSmall
+                              .titleLarge
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 8),
@@ -864,7 +832,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           onFieldSubmitted: (_) => _submitLogin(),
                           decoration: const InputDecoration(
                             labelText: 'Password',
-                            hintText: 'enter Seraph Password !!',
                             prefixIcon: Icon(Icons.lock_outline),
                           ),
                           validator: (value) {
@@ -883,8 +850,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 ? const SizedBox(
                                     height: 18,
                                     width: 18,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2),
+                                    child: CircularProgressIndicator(strokeWidth: 2),
                                   )
                                 : const Text('Login'),
                           ),
@@ -895,13 +861,87 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           child: OutlinedButton(
                             onPressed: _saving
                                 ? null
-                                : () =>
-                                    setState(() => _stage = _AuthStage.choice),
+                                : () => setState(() => _stage = _AuthStage.choice),
                             child: const Text('Back'),
                           ),
                         ),
                       ],
                     ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSuccessPage(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const CircleAvatar(
+                        radius: 34,
+                        backgroundColor: AppColors.emeraldDark,
+                        child: Icon(Icons.check_rounded, color: Colors.white, size: 34),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Signup Successful',
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Your profile is ready. Continue to your dashboard.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _signupSyncedToCloud
+                            ? 'Cloud sync completed successfully.'
+                            : 'Cloud sync unavailable. Profile saved locally and will sync later.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 20),
+                      const Divider(height: 1),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _finalizing ? null : _finishOnboarding,
+                          icon: _finalizing
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.arrow_forward_rounded),
+                          label: Text(
+                            _finalizing ? 'Please wait...' : 'Go to Dashboard',
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -923,8 +963,11 @@ class _InfoChip extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF1A1A1A)
-            : const Color(0xFFEEEEEE),
+            ? AppColors.emeraldDark.withValues(alpha: 0.30)
+            : Colors.white,
+        border: Border.all(
+          color: AppColors.emeraldPrimary.withValues(alpha: 0.30),
+        ),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Padding(

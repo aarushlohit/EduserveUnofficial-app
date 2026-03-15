@@ -5,7 +5,7 @@ import 'package:eduserveapp/core/theme/app_theme.dart';
 import 'package:eduserveapp/features/auth/presentation/providers/auth_provider.dart';
 import 'package:eduserveapp/features/auth/presentation/screens/login_screen.dart';
 import 'package:eduserveapp/features/auth/presentation/screens/splash_screen.dart';
-import 'package:eduserveapp/features/portal/presentation/providers/portal_provider.dart';
+import 'package:eduserveapp/features/portal/domain/providers/portal_provider.dart';
 import 'package:eduserveapp/features/portal/presentation/screens/home_screen.dart';
 import 'package:eduserveapp/features/portal/presentation/screens/settings_screen.dart';
 

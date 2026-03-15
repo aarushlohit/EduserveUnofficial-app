@@ -189,7 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 await widget.onLogout!();
               }
             },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: Color(0xFF38BDF8)),
             child: const Text('Log out'),
           ),
         ],

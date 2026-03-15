@@ -17,7 +17,6 @@ import 'package:eduserveapp/features/eduserve/eduserve_webview_screen.dart';
 import 'package:eduserveapp/features/home/home_screen.dart';
 import 'package:eduserveapp/features/onboarding/onboarding_screen.dart';
 import 'package:eduserveapp/features/results/results_webview_screen.dart';
-import 'package:eduserveapp/features/settings/profile_screen.dart';
 import 'package:eduserveapp/features/settings/settings_screen.dart';
 import 'package:eduserveapp/features/settings/theme_controller.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -211,37 +210,6 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
     }
   }
 
-  Future<void> _openProfile() async {
-    final navigator = Navigator.of(context);
-    await navigator.push(
-      MaterialPageRoute<void>(
-        builder: (_) => ProfileScreen(onLogout: _logout),
-      ),
-    );
-  }
-
-  Future<void> _bootstrapUpdateConfig() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      await UpdateConfigService.instance
-          .ensureDefaultConfig(currentVersion: info.version);
-
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Update config bootstrap completed.')),
-      );
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to bootstrap update config.')),
-      );
-    }
-  }
-
   Future<void> _onNotificationsViewed() async {
     await AnalyticsService.instance.logNotificationOpened();
     await NotificationCenterService.instance.markSeenNow();
@@ -277,7 +245,7 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
       builder: (_, __) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'PocketEduServe',
+          title: 'EduServe',
           theme: _buildTheme(Brightness.light),
           darkTheme: _buildTheme(Brightness.dark),
           themeMode: _themeController.themeMode,
@@ -290,19 +258,13 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
                       ? AdminDashboardScreen(
                           uid: _uid,
                           themeController: _themeController,
-                          onCheckUpdates: _checkForUpdates,
-                          onOpenProfile: _openProfile,
-                          onBootstrapUpdateConfig: _bootstrapUpdateConfig,
                           onLogout: _logout,
                         )
                       : _MainShell(
                           uid: _uid,
                           hasUnreadNotifications: _hasUnreadNotifications,
                           onNotificationsViewed: _onNotificationsViewed,
-                          onCheckUpdates: _checkForUpdates,
                           themeController: _themeController,
-                          onOpenProfile: _openProfile,
-                          onBootstrapUpdateConfig: _bootstrapUpdateConfig,
                           onLogout: _logout,
                         ))
                   : OnboardingScreen(onCompleted: _onOnboardingCompleted),
@@ -313,18 +275,25 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
 
   ThemeData _buildTheme(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
-    
-    // Emerald Palette - Extreme
-    const primaryColor = AppColors.emeraldPrimary; 
-    // const darkPrimaryColor = AppColors.emeraldPrimary; // Unused
-    const accentColor = AppColors.emeraldAccent;
+
+    // Use vibrant light blue against true dark colors for a modern, sleek contrast
+    const lightPrimaryColor = AppColors.emeraldPrimary;
+    const lightAccentColor = AppColors.emeraldAccent;
+    const darkPrimaryColor = Color(0xFF38BDF8); // Vibrant Light Blue
+    const darkAccentColor = Color(0xFF7DCE13); // Soft teal/light blue accent
+    const darkBackground = Color(0xFF0A0A0A); // Near True Black
+    const darkSurface = Color(0xFF141414); // Dark Gray card surface
+    const darkInput = Color(0xFF1E1E1E); // Elevated dark gray input
+
+    final primaryColor = isDark ? darkPrimaryColor : lightPrimaryColor;
+    final accentColor = isDark ? darkAccentColor : lightAccentColor;
 
     final scheme = ColorScheme.fromSeed(
       seedColor: primaryColor,
       brightness: brightness,
       primary: primaryColor,
       secondary: accentColor,
-      surface: isDark ? AppColors.inputBackgroundDark : Colors.white,
+      surface: isDark ? darkSurface : Colors.white,
       error: AppColors.danger,
     );
 
@@ -332,13 +301,13 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor:
-          isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+          isDark ? darkBackground : AppColors.backgroundLight,
       appBarTheme: AppBarTheme(
         elevation: 0,
         scrolledUnderElevation: 0,
-        centerTitle: true,
+        centerTitle: false,
         backgroundColor:
-            isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+            isDark ? darkBackground : AppColors.backgroundLight,
         foregroundColor: isDark ? Colors.white : Colors.black,
         titleTextStyle: TextStyle(
           color: isDark ? Colors.white : Colors.black,
@@ -348,19 +317,19 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
         ),
       ),
       cardTheme: CardThemeData(
-        color: isDark ? AppColors.cardDark : Colors.white,
+        color: isDark ? darkSurface : Colors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
-            color: isDark ? const Color(0xFF262626) : const Color(0xFFEFEFEF),
+            color: isDark ? const Color(0xFF2E2E2E) : const Color(0xFFEFEFEF),
             width: 0.5,
           ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark ? const Color(0xFF262626) : const Color(0xFFFAFAFA),
+        fillColor: isDark ? darkInput : const Color(0xFFFAFAFA),
         contentPadding:
             const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
         border: OutlineInputBorder(
@@ -378,10 +347,10 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: isDark ? primaryColor : primaryColor,
+          backgroundColor: primaryColor,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
           ),
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
           textStyle: const TextStyle(
@@ -390,10 +359,24 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
           ),
         ),
       ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: isDark ? Colors.white : Colors.black,
+          side: BorderSide(
+            color: isDark
+                ? AppColors.emeraldPrimary.withValues(alpha: 0.40)
+                : AppColors.emeraldPrimary.withValues(alpha: 0.35),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+        ),
+      ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-        selectedItemColor: isDark ? Colors.white : Colors.black, // Instagram style: Black/White selected
-        unselectedItemColor: Colors.grey,
+        backgroundColor: isDark ? darkBackground : AppColors.backgroundLight,
+        selectedItemColor: isDark ? darkPrimaryColor : AppColors.emeraldPrimary,
+        unselectedItemColor: isDark ? const Color(0xFF737373) : Colors.black45,
         type: BottomNavigationBarType.fixed,
         showSelectedLabels: false,
         showUnselectedLabels: false,
@@ -401,11 +384,11 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: isDark ? const Color(0xFF262626) : const Color(0xFF111111),
+        backgroundColor: isDark ? darkSurface : const Color(0xFF111111),
         contentTextStyle: const TextStyle(color: Colors.white),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      fontFamily: 'Inter', // Try modern font if available, else Roboto logs warning but works
+      fontFamily: 'Inter',
     );
   }
 }
@@ -415,20 +398,14 @@ class _MainShell extends StatefulWidget {
     required this.uid,
     required this.hasUnreadNotifications,
     required this.onNotificationsViewed,
-    required this.onCheckUpdates,
     required this.themeController,
-    required this.onOpenProfile,
-    required this.onBootstrapUpdateConfig,
     required this.onLogout,
   });
 
   final String uid;
   final bool hasUnreadNotifications;
   final Future<void> Function() onNotificationsViewed;
-  final Future<void> Function() onCheckUpdates;
   final ThemeController themeController;
-  final Future<void> Function() onOpenProfile;
-  final Future<void> Function() onBootstrapUpdateConfig;
   final Future<void> Function() onLogout;
 
   @override
@@ -493,15 +470,11 @@ class _MainShellState extends State<_MainShell> {
         uid: widget.uid,
         hasUnreadNotifications: widget.hasUnreadNotifications,
         onNotificationsViewed: widget.onNotificationsViewed,
-        onOpenProfile: () => widget.onOpenProfile(),
         onOpenSettings: () {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (_) => SettingsScreen(
                 themeController: widget.themeController,
-                onCheckUpdates: widget.onCheckUpdates,
-                onOpenProfile: widget.onOpenProfile,
-                onBootstrapUpdateConfig: widget.onBootstrapUpdateConfig,
                 onLogout: widget.onLogout,
               ),
             ),
@@ -529,7 +502,7 @@ class _MainShellState extends State<_MainShell> {
         decoration: BoxDecoration(
           border: Border(
             top: BorderSide(
-              color: isDark ? const Color(0xFF262626) : const Color(0xFFEFEFEF),
+              color: isDark ? const Color(0xFF262626) : Color(0xFFEFEFEF),
               width: 0.5,
             ),
           )

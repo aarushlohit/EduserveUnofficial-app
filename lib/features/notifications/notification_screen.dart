@@ -74,12 +74,12 @@ class NotificationScreen extends StatelessWidget {
                     height: 36,
                     width: 36,
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.14),
+                      color: Color(0xFF38BDF8).withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(
                       Icons.notifications_active,
-                      color: Colors.red,
+                      color: Color(0xFF38BDF8),
                       size: 20,
                     ),
                   ),

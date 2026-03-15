@@ -55,6 +55,16 @@ class NotificationCenterService {
     await prefs.setString(AppConfig.localGreetingFeedKey, jsonEncode(current));
   }
 
+  Future<void> removeByCreatedAtMs(int createdAtMs) async {
+    final prefs = await SharedPreferences.getInstance();
+    final current = await getGreetingFeed();
+    current.removeWhere((item) {
+      final ms = (item['createdAtMs'] as num?)?.toInt();
+      return ms == createdAtMs;
+    });
+    await prefs.setString(AppConfig.localGreetingFeedKey, jsonEncode(current));
+  }
+
   Future<DateTime> _lastSeen() async {
     final prefs = await SharedPreferences.getInstance();
     final ms = prefs.getInt(AppConfig.notificationLastSeenKey);

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../domain/portal_models.dart';
-import '../providers/portal_provider.dart';
+import '../../domain/providers/portal_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import 'webview_screen.dart';
 import 'attendance_screen.dart';
@@ -397,7 +397,7 @@ class _AttendanceSummaryTile extends StatelessWidget {
         ? Colors.green.shade600
         : pct >= 60
             ? Colors.orange.shade700
-            : Colors.red.shade600;
+            : Color(0xFF38BDF8);
 
     return ListTile(
       dense: true,
@@ -434,7 +434,7 @@ class _AssignmentTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final daysLeft = assignment.dueDate.difference(DateTime.now()).inDays;
     final urgentColor =
-        daysLeft <= 1 ? Colors.red : (daysLeft <= 3 ? Colors.orange : Colors.green);
+        daysLeft <= 1 ? const Color(0xFF38BDF8) : (daysLeft <= 3 ? Colors.orange : Colors.green);
 
     return ListTile(
       dense: true,

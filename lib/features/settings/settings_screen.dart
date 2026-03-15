@@ -8,16 +8,10 @@ class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
     required this.themeController,
-    required this.onCheckUpdates,
-    required this.onOpenProfile,
-    required this.onBootstrapUpdateConfig,
     required this.onLogout,
   });
 
   final ThemeController themeController;
-  final Future<void> Function() onCheckUpdates;
-  final Future<void> Function() onOpenProfile;
-  final Future<void> Function() onBootstrapUpdateConfig;
   final Future<void> Function() onLogout;
 
   @override
@@ -99,20 +93,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 6),
           const _SectionHeader('Account'),
           _SectionCard(
-            child: Column(
-              children: <Widget>[
-                ListTile(
-                  leading: const Icon(Icons.account_circle_outlined),
-                  title: const Text('Profile'),
-                  onTap: widget.onOpenProfile,
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.logout),
-                  title: const Text('Logout'),
-                  onTap: () => widget.onLogout(),
-                ),
-              ],
+            child: ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Logout'),
+              onTap: () async {
+                Navigator.of(context).pop();
+                await widget.onLogout();
+              },
             ),
           ),
           const SizedBox(height: 6),
@@ -166,27 +153,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 6),
           const _SectionHeader('System'),
           _SectionCard(
-            child: Column(
-              children: <Widget>[
-                ListTile(
-                  leading: const Icon(Icons.verified_outlined),
-                  title: const Text('App Version'),
-                  subtitle: Text(_version),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.system_update_alt),
-                  title: const Text('Check for Updates'),
-                  onTap: widget.onCheckUpdates,
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.data_object),
-                  title: const Text('Bootstrap Update Config (Dev)'),
-                  subtitle: const Text('Create default remote update document'),
-                  onTap: widget.onBootstrapUpdateConfig,
-                ),
-              ],
+            child: ListTile(
+              leading: const Icon(Icons.verified_outlined),
+              title: const Text('App Version'),
+              subtitle: Text(_version),
             ),
           ),
         ],

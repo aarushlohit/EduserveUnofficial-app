@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eduserveapp/core/constants/app_config.dart';
 import 'package:eduserveapp/core/constants/colors.dart';
@@ -13,7 +14,6 @@ class HomeScreen extends StatefulWidget {
     required this.uid,
     required this.hasUnreadNotifications,
     required this.onNotificationsViewed,
-    required this.onOpenProfile,
     required this.onOpenSettings,
     required this.onOpenEduserve,
     required this.onOpenResults,
@@ -24,7 +24,6 @@ class HomeScreen extends StatefulWidget {
   final String uid;
   final bool hasUnreadNotifications;
   final Future<void> Function() onNotificationsViewed;
-  final VoidCallback onOpenProfile;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenEduserve;
   final VoidCallback onOpenResults;
@@ -90,9 +89,23 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          SliverAppBar.large(
+          SliverAppBar(
+            pinned: true,
+            floating: true,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            flexibleSpace: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  color: isDark
+                      ? const Color(0xFF0A0A0A).withValues(alpha: 0.88)
+                      : Colors.white.withValues(alpha: 0.92),
+                ),
+              ),
+            ),
             title: Text(
-              'PocketEduServe',
+              'EduServe',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 letterSpacing: -0.5,
@@ -110,12 +123,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: _openNotificationsPanel,
               ),
               IconButton(
-                icon: const CircleAvatar(
-                  radius: 14,
-                  backgroundColor: AppColors.emeraldPrimary,
-                  child: Icon(Icons.person, size: 18, color: Colors.white),
-                ),
-                onPressed: widget.onOpenProfile,
+                icon: const Icon(Icons.settings_outlined),
+                onPressed: widget.onOpenSettings,
               ),
               const SizedBox(width: 8),
             ],
@@ -132,21 +141,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     'Quick Access',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: Colors.grey,
+                      color: isDark ? Colors.white70 : Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 12),
                   _buildQuickAccessGrid(context),
                   const SizedBox(height: 24),
-                  Text(
-                    'Updates',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                    ),
-                  ),
+                  
                   const SizedBox(height: 12),
-                  _buildHackathonFeed(context),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -175,12 +177,59 @@ class _HomeScreenState extends State<HomeScreen> {
                     height: 1.1,
                   ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Welcome back to PocketEduServe',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).hintColor,
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: Theme.of(context).brightness == Brightness.dark
+                      ? const <Color>[Color(0xFF38BDF8), Color(0xFF0284C7)]
+                      : const <Color>[AppColors.emeraldPrimary, AppColors.emeraldDark],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? AppColors.emeraldPrimary.withValues(alpha: 0.32)
+                      : Colors.transparent,
+                  width: 0.5,
+                ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: AppColors.emeraldPrimary.withValues(
+                      alpha: Theme.of(context).brightness == Brightness.dark
+                          ? 0.10
+                          : 0.24,
+                    ),
+                    blurRadius: 18,
+                    offset: const Offset(0, 9),
                   ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Welcome to the portal',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '1st years Made Eduserve Portal App',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.84),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         );
@@ -212,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
             title: 'Results',
             subtitle: 'Check Grades',
             icon: Icons.bar_chart,
-            color: Colors.purple,
+            color: AppColors.emeraldDark,
             width: itemWidth,
             height: itemHeight,
             onTap: widget.onOpenResults,
@@ -221,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
             title: 'AI Assistant',
             subtitle: 'Get Help',
             icon: Icons.auto_awesome,
-            color: Colors.blue,
+            color: Color(0xFF0EA5E9),
             width: itemWidth,
             height: itemHeight,
             onTap: widget.onOpenAi,
@@ -230,7 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
             title: 'Add-ons',
             subtitle: 'More Tools',
             icon: Icons.grid_view_rounded,
-            color: Colors.orange,
+            color: Theme.of(context).colorScheme.error,
             width: itemWidth,
             height: itemHeight,
             onTap: widget.onOpenAddons,
@@ -322,12 +371,14 @@ class _DashboardCard extends StatelessWidget {
 
     return Material(
       color: Theme.of(context).cardColor,
-      elevation: 0, // Flat premium look
+      elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
         side: BorderSide(
-          color: isDark ? Colors.white12 : Colors.black12,
-          width: 0.5,
+          color: isDark
+              ? const Color(0xFF2E2E2E)
+              : Colors.black12,
+          width: isDark ? 0.8 : 0.5,
         ),
       ),
       child: InkWell(
@@ -337,6 +388,18 @@ class _DashboardCard extends StatelessWidget {
           width: width,
           height: height,
           padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: isDark
+                ? null
+                : <BoxShadow>[
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -344,7 +407,7 @@ class _DashboardCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withAlpha(30), // Subtle wash
+                  color: color.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(icon, color: color, size: 28),
@@ -419,7 +482,7 @@ class _EventCard extends StatelessWidget {
                         width: 8,
                         height: 8,
                         decoration: const BoxDecoration(
-                            color: Colors.redAccent, shape: BoxShape.circle),
+                            color: Color(0xFF87CEFA), shape: BoxShape.circle),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -482,14 +545,16 @@ class _NotificationPopupState extends State<_NotificationPopup> {
     _feed = List<Map<String, dynamic>>.from(widget.initialFeed);
   }
 
-  Future<void> _deleteAt(int index) async {
-    await NotificationCenterService.instance.removeAt(index);
-    if (mounted) {
-      setState(() {
-        if (index >= 0 && index < _feed.length) {
-          _feed.removeAt(index);
-        }
-      });
+  Future<void> _deleteItem(Map<String, dynamic> item) async {
+    final createdAtMs = (item['createdAtMs'] as num?)?.toInt();
+    if (!mounted) return;
+
+    setState(() {
+      _feed.remove(item);
+    });
+
+    if (createdAtMs != null) {
+      await NotificationCenterService.instance.removeByCreatedAtMs(createdAtMs);
     }
   }
 
@@ -560,11 +625,13 @@ class _NotificationPopupState extends State<_NotificationPopup> {
                       return Dismissible(
                         key: ValueKey('${item['title']}-${item['createdAtMs'] ?? index}'),
                         direction: DismissDirection.endToStart,
-                        onDismissed: (_) => _deleteAt(index),
+                        onDismissed: (_) {
+                          _deleteItem(item);
+                        },
                         background: Container(
                           margin: const EdgeInsets.symmetric(vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.redAccent,
+                            color: Theme.of(context).colorScheme.error,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           alignment: Alignment.centerRight,

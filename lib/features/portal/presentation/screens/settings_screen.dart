@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/portal_provider.dart';
+import '../../domain/providers/portal_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55,8 +55,8 @@ class SettingsScreen extends StatelessWidget {
             subtitle: Text(auth.session.rollNumber ?? ''),
           ),
           ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text('Logout', style: TextStyle(color: Colors.red)),
+            leading: const Icon(Icons.logout, color: Color(0xFF38BDF8)),
+            title: const Text('Logout', style: TextStyle(color: Color(0xFF38BDF8))),
             subtitle: const Text('Clears session cookies'),
             onTap: () async {
               final confirmed = await showDialog<bool>(
@@ -74,7 +74,7 @@ class SettingsScreen extends StatelessWidget {
                     FilledButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: FilledButton.styleFrom(
-                          backgroundColor: Colors.red),
+                          backgroundColor: Color(0xFF38BDF8)),
                       child: const Text('Logout'),
                     ),
                   ],

@@ -1,408 +1,223 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:provider/provider.dart';
-import '../../../../core/constants/app_constants.dart';
-import '../providers/auth_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:eduserveapp/core/constants/app_config.dart';
+import 'package:eduserveapp/core/constants/colors.dart';
+import 'package:eduserveapp/core/services/notification_center_service.dart';
+import 'signup_screen.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LoginScreen
-//
-// Landing page with a "Continue" button.  Tapping it pushes the in-app
-// WebView login sheet.  The WebView lives inside the app so cookies are
-// captured from the same WKWebView / android.webkit.WebView session.
-// ─────────────────────────────────────────────────────────────────────────────
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key, this.onSuccess});
 
-class LoginScreen extends StatelessWidget {
-  const LoginScreen({super.key});
+  final Future<void> Function()? onSuccess;
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_isLoading) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final email = _emailController.text.trim().toLowerCase();
+      final password = _passwordController.text.trim();
+
+      final credential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password)
+          .timeout(const Duration(seconds: 15));
+
+      final uid = credential.user?.uid;
+      if (uid == null) throw Exception('User ID unresolved');
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(AppConfig.onboardingCompleteKey, true);
+      await prefs.setString(AppConfig.profileDocIdKey, uid);
+
+      if (!mounted) return;
+
+      // Notify
+      final greeting = AppConfig
+          .loginGreetings[Random().nextInt(AppConfig.loginGreetings.length)];
+      await NotificationCenterService.instance.appendLoginGreeting(greeting);
+
+      if (widget.onSuccess != null) {
+        await widget.onSuccess!();
+      }
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Login Failed: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        elevation: 0,
+      ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            children: [
-              const Spacer(flex: 2),
-              // ── Branding ───────────────────────────────────────────────
-              Container(
-                width: 90,
-                height: 90,
-                decoration: BoxDecoration(
-                  color: colorScheme.primary,
-                  shape: BoxShape.circle,
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Spacer(),
+                Text(
+                  'Welcome Back',
+                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.royalBlueDark,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.school_rounded,
-                  size: 48,
-                  color: Colors.white,
+                const SizedBox(height: 8),
+                Text(
+                  'Login to your account',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.grey[600],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'EduServe',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Karunya Institute of Technology & Sciences',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurface.withAlpha(153),
-                    ),
-              ),
-              const Spacer(),
+                const SizedBox(height: 48),
 
-              // ── Info card ──────────────────────────────────────────────
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.info_outline,
-                              size: 18, color: colorScheme.primary),
-                          const SizedBox(width: 8),
-                          Text(
-                            'How login works',
+                // Email
+                TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    filled: true,
+                    fillColor: AppColors.inputBackgroundLight,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  validator: (v) => (v?.isEmpty ?? true) ? 'Required' : null,
+                ),
+                const SizedBox(height: 16),
+
+                // Password
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    filled: true,
+                    fillColor: AppColors.inputBackgroundLight,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  validator: (v) => (v?.isEmpty ?? true) ? 'Required' : null,
+                ),
+                
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {}, 
+                    child: const Text('Forgot Password?', style: TextStyle(color: AppColors.royalBlue)),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Login Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.royalBlue,
+                      foregroundColor: Colors.white,
+                      elevation: 4,
+                      shadowColor: AppColors.royalBlue.withValues(alpha: 0.4),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: _isLoading 
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          'Login',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+
+                // Sign Up Link
+                Center(
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SignupScreen(onSuccess: widget.onSuccess),
+                        ),
+                      );
+                    },
+                    child: RichText(
+                      text: TextSpan(
+                        text: "Don't have an account? ",
+                        style: TextStyle(color: Colors.grey[600]),
+                        children: const [
+                          TextSpan(
+                            text: 'Sign Up',
                             style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.primary,
+                              color: AppColors.royalBlue,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      _InfoRow(
-                        icon: Icons.web,
-                        text:
-                            'Sign in with your Karunya Google account inside the app.',
-                      ),
-                      const SizedBox(height: 6),
-                      _InfoRow(
-                        icon: Icons.lock_outline,
-                        text:
-                            'Your session is saved securely so you stay logged in.',
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-
-              // ── Action area ────────────────────────────────────────────
-              Consumer<AuthProvider>(
-                builder: (context, auth, _) {
-                  if (auth.status == AuthStatus.checkingSession) {
-                    return const _LoadingButton(label: 'Verifying session…');
-                  }
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (auth.status == AuthStatus.error &&
-                          auth.errorMessage != null)
-                        _ErrorBanner(
-                          message: auth.errorMessage!,
-                          onDismiss: auth.clearError,
-                        ),
-                      const SizedBox(height: 8),
-                      FilledButton.icon(
-                        onPressed: () => _openLoginWebView(context),
-                        icon: const Icon(Icons.login_rounded),
-                        label: const Text(
-                          'Continue with Karunya Portal',
-                          style: TextStyle(fontSize: 15),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-
-              const Spacer(flex: 2),
-
-              // ── Footer ─────────────────────────────────────────────────
-              Text(
-                'Unofficial app · Not affiliated with Karunya University',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: colorScheme.onSurface.withAlpha(102),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
+                const Spacer(flex: 2),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-  }
-
-  void _openLoginWebView(BuildContext context) {
-    debugPrint('[LOGIN] Opening in-app login WebView');
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const _LoginWebViewScreen(),
-        fullscreenDialog: true,
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// In-app login WebView
-//
-// Loads the portal login page inside the app.  Monitors URL changes to
-// detect when the user has successfully authenticated (landing on a page
-// that is NOT the login or Google OAuth page), then captures cookies and
-// notifies AuthProvider.
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _LoginWebViewScreen extends StatefulWidget {
-  const _LoginWebViewScreen();
-
-  @override
-  State<_LoginWebViewScreen> createState() => _LoginWebViewScreenState();
-}
-
-class _LoginWebViewScreenState extends State<_LoginWebViewScreen> {
-  double _progress = 0;
-  bool _capturing = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Sign in to EduServe'),
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          tooltip: 'Cancel',
-          onPressed: () {
-            debugPrint('[LOGIN-WV] User cancelled login');
-            Navigator.of(context).pop();
-          },
-        ),
-      ),
-      body: Stack(
-        children: [
-          InAppWebView(
-            initialUrlRequest: URLRequest(
-              url: WebUri(AppConstants.loginUrl),
-            ),
-            initialSettings: InAppWebViewSettings(
-              javaScriptEnabled: true,
-              domStorageEnabled: true,
-              databaseEnabled: true,
-              cacheEnabled: true,
-              // Spoof User-Agent: removes "wv" WebView marker so Google OAuth
-              // does not block the sign-in flow.
-              userAgent: AppConstants.desktopUserAgent,
-              useShouldOverrideUrlLoading: true,
-              // Required for Google sign-in to work correctly inside WebView.
-              mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
-            ),
-            onLoadStart: (controller, url) {
-              debugPrint('[LOGIN-WV] onLoadStart: $url');
-            },
-            onLoadStop: (controller, url) async {
-              debugPrint('[LOGIN-WV] onLoadStop: $url');
-              if (!_capturing) {
-                await _checkIfLoggedIn(controller, url?.toString());
-              }
-            },
-            onProgressChanged: (controller, progress) {
-              setState(() => _progress = progress / 100);
-            },
-            shouldOverrideUrlLoading: (controller, navigationAction) async {
-              final url = navigationAction.request.url?.toString() ?? '';
-              debugPrint('[LOGIN-WV] shouldOverride: $url');
-              // Allow everything — we need Google OAuth redirects to proceed.
-              return NavigationActionPolicy.ALLOW;
-            },
-            onReceivedError: (controller, request, error) {
-              debugPrint(
-                  '[LOGIN-WV] ERROR ${error.type}: ${error.description} @ ${request.url}');
-            },
-            onConsoleMessage: (controller, msg) {
-              debugPrint('[LOGIN-WV] console[${msg.messageLevel}]: ${msg.message}');
-            },
-          ),
-          if (_progress < 1)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: LinearProgressIndicator(
-                value: _progress == 0 ? null : _progress,
-                minHeight: 3,
-                backgroundColor: Colors.transparent,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          if (_capturing)
-            Container(
-              color: Colors.black45,
-              child: const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(color: Colors.white),
-                    SizedBox(height: 16),
-                    Text(
-                      'Saving session…',
-                      style: TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _checkIfLoggedIn(
-      InAppWebViewController controller, String? url) async {
-    if (url == null) return;
-    debugPrint('[LOGIN-WV] _checkIfLoggedIn: $url');
-
-    // Still on login / OAuth pages — not done yet.
-    final onAuthPage = AppConstants.loginIndicators
-        .any((s) => url.toLowerCase().contains(s.toLowerCase()));
-    if (onAuthPage) {
-      debugPrint('[LOGIN-WV] Still on auth page, waiting…');
-      return;
-    }
-
-    // Must be on the portal domain to be a successful login.
-    if (!url.startsWith(AppConstants.portalBaseUrl)) {
-      debugPrint('[LOGIN-WV] Not on portal domain, ignoring: $url');
-      return;
-    }
-
-    debugPrint('[LOGIN-WV] Detected portal page — capturing cookies');
-    setState(() => _capturing = true);
-
-    // Read cookies directly from this WebView instance.
-    final cookieManager = CookieManager.instance();
-    final cookies = await cookieManager.getCookies(
-      url: WebUri(AppConstants.portalBaseUrl),
-    );
-    debugPrint('[LOGIN-WV] Cookies found: ${cookies.length}');
-    for (final c in cookies) {
-      debugPrint('[LOGIN-WV]   cookie: ${c.name}=${c.value}  domain=${c.domain}');
-    }
-
-    if (!mounted) return;
-    final auth = context.read<AuthProvider>();
-    await auth.onInAppLoginComplete(cookies);
-
-    if (!mounted) return;
-    Navigator.of(context).pop();
-  }
-}
-
-// ── Sub-widgets ────────────────────────────────────────────────────────────────
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.icon, required this.text});
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 16, color: Colors.grey.shade500),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(fontSize: 13, height: 1.4),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _LoadingButton extends StatelessWidget {
-  const _LoadingButton({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      height: 52,
-      decoration: BoxDecoration(
-        color: colorScheme.primary.withAlpha(26),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colorScheme.primary.withAlpha(77)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: colorScheme.primary,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Text(
-              label,
-              style: TextStyle(color: colorScheme.primary, fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message, required this.onDismiss});
-  final String message;
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.shade200),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.error_outline, size: 18, color: Colors.red),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(color: Colors.red, fontSize: 13),
-            ),
-          ),
-          GestureDetector(
-            onTap: onDismiss,
-            child: const Icon(Icons.close, size: 16, color: Colors.red),
-          ),
-        ],
       ),
     );
   }
