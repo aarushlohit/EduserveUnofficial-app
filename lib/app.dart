@@ -280,7 +280,7 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
     const lightPrimaryColor = AppColors.emeraldPrimary;
     const lightAccentColor = AppColors.emeraldAccent;
     const darkPrimaryColor = Color(0xFF38BDF8); // Vibrant Light Blue
-    const darkAccentColor = Color(0xFF7DCE13); // Soft teal/light blue accent
+    const darkAccentColor = Color(0xFF7DD3FC); // Soft teal/light blue accent
     const darkBackground = Color(0xFF0A0A0A); // Near True Black
     const darkSurface = Color(0xFF141414); // Dark Gray card surface
     const darkInput = Color(0xFF1E1E1E); // Elevated dark gray input

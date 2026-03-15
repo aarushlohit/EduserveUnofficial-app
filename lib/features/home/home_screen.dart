@@ -1,12 +1,9 @@
 import 'dart:ui';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:eduserveapp/core/constants/app_config.dart';
+
 import 'package:eduserveapp/core/constants/colors.dart';
-import 'package:eduserveapp/core/services/activity_log_service.dart';
 import 'package:eduserveapp/core/services/firestore_user_service.dart';
 import 'package:eduserveapp/core/services/notification_center_service.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -289,61 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Widget _buildHackathonFeed(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection(AppConfig.hackathonsCollection)
-          .where('endDate',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(DateTime.now()))
-          .orderBy('endDate')
-          .limit(3)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: LinearProgressIndicator());
-        }
-
-        final docs = snapshot.data?.docs ?? [];
-        if (docs.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Center(
-              child: Text('No active events right now.'),
-            ),
-          );
-        }
-
-        return Column(
-          children: docs.map((doc) {
-            final data = doc.data();
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12.0),
-              child: _EventCard(
-                title: (data['title'] as String?) ?? 'Event',
-                description: (data['description'] as String?) ?? 'No details',
-                endDate: (data['endDate'] as Timestamp?)?.toDate(),
-                onTap: () async {
-                  await ActivityLogService.instance.logCurrentUserAction(
-                    uid: widget.uid,
-                    action: 'hackathon_click',
-                    tab: 'home',
-                  );
-                  final url = data['url'] as String?;
-                  if (url != null && await canLaunchUrl(Uri.parse(url))) {
-                    await launchUrl(Uri.parse(url));
-                  }
-                },
-              ),
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
+ 
 }
 
 class _DashboardCard extends StatelessWidget {
@@ -440,92 +383,6 @@ class _DashboardCard extends StatelessWidget {
   }
 }
 
-class _EventCard extends StatelessWidget {
-  const _EventCard({
-    required this.title,
-    required this.description,
-    this.endDate,
-    required this.onTap,
-  });
-
-  final String title;
-  final String description;
-  final DateTime? endDate;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isDark ? Colors.white10 : Colors.black12,
-            width: 0.5,
-          ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                            color: Color(0xFF87CEFA), shape: BoxShape.circle),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'EVENT',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).hintColor,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Theme.of(context).hintColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Icon(Icons.arrow_forward_ios,
-                size: 16, color: Theme.of(context).hintColor),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _NotificationPopup extends StatefulWidget {
   const _NotificationPopup({required this.initialFeed});
@@ -574,7 +431,7 @@ class _NotificationPopupState extends State<_NotificationPopup> {
             offset: const Offset(0, 12),
           ),
         ],
-        border: Border.all(color: Colors.black12.withValues(alpha: 0.08)),
+        border: Border.all(color: theme.brightness == Brightness.dark ? const Color(0xFF2E2E2E) : Colors.black12.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
