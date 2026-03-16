@@ -250,9 +250,7 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
           darkTheme: _buildTheme(Brightness.dark),
           themeMode: _themeController.themeMode,
           home: _loading
-              ? const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                )
+              ? const _StartupLoader()
               : _onboardingComplete
                   ? (_isAdmin
                       ? AdminDashboardScreen(
@@ -572,6 +570,133 @@ class _TabIconWithDot extends StatelessWidget {
             child: CircleAvatar(radius: 3, backgroundColor: AppColors.danger),
           ),
       ],
+    );
+  }
+}
+
+class _StartupLoader extends StatefulWidget {
+  const _StartupLoader();
+
+  @override
+  State<_StartupLoader> createState() => _StartupLoaderState();
+}
+
+class _StartupLoaderState extends State<_StartupLoader>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final gradient = LinearGradient(
+      colors: isDark
+          ? const <Color>[Color(0xFF0A0A0A), Color(0xFF0F172A)]
+          : <Color>[Colors.white, AppColors.emeraldPrimary.withValues(alpha: 0.08)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+
+    final surfaceColor = isDark ? const Color(0xFF111111) : Colors.white;
+    final borderColor = isDark
+        ? const Color(0xFF1F2933)
+        : AppColors.emeraldPrimary.withValues(alpha: 0.08);
+
+    return Scaffold(
+      body: DecoratedBox(
+        decoration: BoxDecoration(gradient: gradient),
+        child: Center(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              final scale = 0.92 + (_controller.value * 0.12);
+
+              return Transform.scale(
+                scale: scale,
+                child: Container(
+                  padding: const EdgeInsets.all(26),
+                  decoration: BoxDecoration(
+                    color: surfaceColor,
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: borderColor, width: 1),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.10),
+                        blurRadius: 28,
+                        offset: const Offset(0, 16),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: isDark
+                                ? const <Color>[AppColors.emeraldPrimary, Color(0xFF22D3EE)]
+                                : const <Color>[AppColors.emeraldPrimary, AppColors.emeraldDark],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.auto_awesome,
+                          size: 32,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'EduServe',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Preparing your portal...',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: LinearProgressIndicator(
+                          minHeight: 6,
+                          color: theme.colorScheme.primary.withValues(alpha: 0.90),
+                          backgroundColor:
+                              theme.colorScheme.primary.withValues(alpha: 0.18),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 }

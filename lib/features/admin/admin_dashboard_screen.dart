@@ -668,7 +668,7 @@ class _PreviewCard extends StatelessWidget {
                   imageUrl,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
-                    color: Theme.of(context).colorScheme.surfaceVariant,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     alignment: Alignment.center,
                     child: const Icon(Icons.broken_image_outlined),
                   ),

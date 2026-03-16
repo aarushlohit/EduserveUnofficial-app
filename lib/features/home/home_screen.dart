@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eduserveapp/core/services/firestore_user_service.dart';
 import 'package:eduserveapp/core/services/notification_center_service.dart';
 import 'package:eduserveapp/core/constants/app_config.dart';
-import 'package:eduserveapp/core/services/post_service.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:flutter/material.dart';
 
@@ -293,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _NewsFeed extends StatelessWidget {
-  _NewsFeed({super.key});
+  _NewsFeed();
 
   final ValueNotifier<bool> _expanded = ValueNotifier<bool>(false);
 
@@ -342,7 +341,7 @@ class _NewsFeed extends StatelessWidget {
                       final imageUrl = (data['imageUrl'] as String?) ?? '';
                       final ts = data['createdAt'];
                       final when = ts is Timestamp
-                          ? '${ts.toDate().toLocal().toIso8601String().split('T').first}'
+                          ? ts.toDate().toLocal().toIso8601String().split('T').first
                           : '-';
 
                       final subtitleLines = <String>[
@@ -376,7 +375,7 @@ class _NewsFeed extends StatelessWidget {
                                       imageUrl,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, __, ___) => Container(
-                                        color: Theme.of(context).colorScheme.surfaceVariant,
+                                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
                                         alignment: Alignment.center,
                                         child: const Icon(Icons.broken_image_outlined),
                                       ),
