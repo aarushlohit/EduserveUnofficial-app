@@ -9,6 +9,7 @@ class AppConfig {
   static const String themeModeKey = 'theme_mode';
   static const String profileDocIdKey = 'profile_doc_id';
   static const String profileSyncPendingKey = 'profile_sync_pending';
+  static const String activityLogsPurgedKey = 'activity_logs_purged_once';
   static const String fcmTokenKey = 'fcm_token';
   static const int minSignupAge = 17;
   static const String kmailDomain = '@karunya.edu.in';
@@ -73,6 +74,8 @@ class AppConfig {
   static const String updateMinSupportedField = 'minSupportedVersion';
   static const String updateUpdatedAtField = 'updatedAt';
   static const String updateApkUrlField = 'apkUrl';
+  static const String updateGistUrl =
+      'https://gist.githubusercontent.com/aarushlohit/42c5ef4cb539ed513906af0e07e59019/raw';
 
     static const String usersCollection = 'users';
     static const String notificationsCollection = 'notifications';

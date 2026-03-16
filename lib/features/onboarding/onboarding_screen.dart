@@ -28,6 +28,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _registerController = TextEditingController();
   final _signupPasswordController = TextEditingController();
   final _ageController = TextEditingController();
 
@@ -46,6 +47,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   bool _signupSyncedToCloud = false;
 
   _AuthStage _stage = _AuthStage.choice;
+
+  static const Map<String, String> _emailEasterEggs = <String, String>{
+    'mayshasherin@karunya.edu.in':
+        'Mashya I knew you 😄 How was the app? Let me know – Coonoor Kari.',
+    'ssubhashini25@karunya.edu.in': 'Salem enna special uh Subhashini??',
+    'siddarths25@karunya.edu.in':
+        'Enna da Siddarth signup panna 😄 Developer knew you. Lucky!',
+    'jolishab@karunya.edu.in': 'Developer knows you 😄 Lucky.',
+    'mirthusha@karunya.edu.in': 'Ooty weather how\'s now?',
+    'lizahjudith@karunya.edu.in':
+        'Tirupur cotton manufacturing proper now? Can I get beige pant?',
+    'srimathyk@karunya.edu.in': 'Tirupur cotton famous right?',
+    'vijolsharon@karunya.edu.in': 'Developer knows you 😄',
+  };
 
   static const List<String> _departments = <String>[
     'AI/ML',
@@ -95,6 +110,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _registerController.dispose();
     _signupPasswordController.dispose();
     _ageController.dispose();
     _loginEmailController.dispose();
@@ -174,6 +190,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               name: _nameController.text.trim(),
               email: email,
               phone: _phoneController.text.trim(),
+              registerNumber: _registerController.text.trim().isEmpty
+                  ? null
+                  : _registerController.text.trim().toUpperCase(),
               dept: _department!,
               year: _year!,
               dob: _dob!,
@@ -205,6 +224,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       );
 
       await AnalyticsService.instance.logSignupCompleted();
+
+      await _handleSignupEasterEggs(
+        uid: uid,
+        email: email,
+        name: _nameController.text.trim(),
+      );
 
       if (!mounted) {
         return;
@@ -331,6 +356,72 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       }
     }
     return 'Login failed. Please try again.';
+  }
+
+  Future<void> _handleSignupEasterEggs({
+    required String uid,
+    required String email,
+    required String name,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final normalizedEmail = email.toLowerCase();
+    String? registerNumber;
+    try {
+      registerNumber = (await FirestoreUserService.instance.getUserById(uid))
+          ?.registerNumber
+          ?.trim();
+    } catch (_) {
+      // Ignore profile fetch failures for easter egg logic.
+    }
+
+    final regUpper = registerNumber?.toUpperCase();
+
+    // High priority: specific register-number-based easter eggs (override email).
+    if (regUpper == 'URK25CS6054') {
+      final regKey = 'signup_easter_reg_URK25CS6054';
+      if ((prefs.getBool(regKey) ?? false) == false) {
+        await prefs.setBool(regKey, true);
+        _showLargeSnackbar(
+          'Dindugul! Biriyani kedukuma 😄 Developer knows you! Lucky!',
+        );
+      }
+      return; // Skip other email-based easter eggs to avoid confusion.
+    }
+
+    if (regUpper == 'URK25CS1067') {
+      final regKey = 'signup_easter_reg_URK25CS1067';
+      if ((prefs.getBool(regKey) ?? false) == false) {
+        await prefs.setBool(regKey, true);
+        _showLargeSnackbar('Salem enna special uh Subhashini??');
+      }
+      return; // Stop after showing Salem dialog for this register number.
+    }
+
+    final emailKey = 'signup_easter_$normalizedEmail';
+    final emailMessage = _emailEasterEggs[normalizedEmail];
+
+    if (emailMessage != null && (prefs.getBool(emailKey) ?? false) == false) {
+      await prefs.setBool(emailKey, true);
+      _showLargeSnackbar(emailMessage);
+    }
+
+    // No extra special-case needed for URK25CS1067; email mapping covers it.
+  }
+
+  void _showLargeSnackbar(String message) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(18),
+        duration: const Duration(seconds: 5),
+        showCloseIcon: true,
+      ),
+    );
   }
 
   @override
@@ -487,6 +578,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                     final phone = (value ?? '').trim();
                                     if (phone.isEmpty) {
                                       return 'Enter your phone number';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: _registerController,
+                                  textInputAction: TextInputAction.next,
+                                  autovalidateMode:
+                                      AutovalidateMode.onUserInteraction,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Register Number',
+                                    hintText: 'URKXXXX',
+                                    prefixIcon: Icon(Icons.badge_outlined),
+                                  ),
+                                  validator: (value) {
+                                    final reg = (value ?? '').trim();
+                                    if (reg.isEmpty) {
+                                      return 'Enter your register number';
+                                    }
+                                    if (!reg.toUpperCase().startsWith('URK')) {
+                                      return 'Format like URKXXXX';
                                     }
                                     return null;
                                   },

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:eduserveapp/core/constants/colors.dart';
@@ -35,6 +36,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  int _titleTapCount = 0;
+  Timer? _titleTapResetTimer;
+
   String _greeting() {
     final hour = DateTime.now().hour;
     if (hour < 12) {
@@ -81,6 +85,44 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _handleTitleTap() {
+    _titleTapResetTimer?.cancel();
+    _titleTapCount += 1;
+    _titleTapResetTimer = Timer(const Duration(seconds: 2), () {
+      _titleTapCount = 0;
+    });
+
+    if (_titleTapCount >= 3) {
+      _titleTapCount = 0;
+      _titleTapResetTimer?.cancel();
+      _showHomepageEasterEgg();
+    }
+  }
+
+  Future<void> _showHomepageEasterEgg() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('EduServe'),
+        content: const Text('Heyy this app is just for you babe ❤️'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _titleTapResetTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -104,12 +146,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            title: Text(
-              'EduServe',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                letterSpacing: -0.5,
-                color: isDark ? Colors.white : Colors.black,
+            title: GestureDetector(
+              onTap: _handleTitleTap,
+              behavior: HitTestBehavior.opaque,
+              child: Text(
+                'EduServe',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.5,
+                  color: isDark ? Colors.white : Colors.black,
+                ),
               ),
             ),
             centerTitle: false,

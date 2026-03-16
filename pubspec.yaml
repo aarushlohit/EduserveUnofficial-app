@@ -30,6 +30,7 @@ dependencies:
 
   # HTTP client for authenticated API requests
   http: ^1.2.2
+  dio: ^5.7.0
 
   # Lightweight key-value storage (non-sensitive preferences)
   shared_preferences: ^2.3.2
@@ -46,6 +47,7 @@ dependencies:
 
   # App/package metadata
   package_info_plus: ^8.1.0
+  install_plugin: ^2.1.0
 
   # Local push notifications for assignment reminders
   flutter_local_notifications: ^18.0.1

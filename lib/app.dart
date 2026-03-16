@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:eduserveapp/core/constants/app_config.dart';
 import 'package:eduserveapp/core/constants/colors.dart';
@@ -21,9 +23,26 @@ import 'package:eduserveapp/features/settings/settings_screen.dart';
 import 'package:eduserveapp/features/settings/theme_controller.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
+import 'package:install_plugin/install_plugin.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher_string.dart';
+
+class _RemoteUpdateInfo {
+  const _RemoteUpdateInfo({
+    required this.version,
+    required this.apkUrl,
+    required this.force,
+    required this.notes,
+  });
+
+  final String version;
+  final String apkUrl;
+  final bool force;
+  final String notes;
+}
 
 class EduServeCompanionApp extends StatefulWidget {
   const EduServeCompanionApp({super.key});
@@ -39,6 +58,7 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
   bool _hasUnreadNotifications = false;
   bool _isAdmin = false;
   String _uid = '';
+  bool _updateChecked = false;
 
   @override
   void initState() {
@@ -64,6 +84,10 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
         await _safeRun(HackathonService.instance.cleanupExpiredPosts);
       }
 
+      // Force purge legacy activity logs to start production clean.
+      await _safeRun(ActivityLogService.instance.purgeAllLogsNow);
+      await _safeRun(ActivityLogService.instance.purgeAllLogsOnce);
+
       await _safeRun(() async {
         final info = await PackageInfo.fromPlatform();
         await UpdateConfigService.instance
@@ -75,7 +99,7 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
       }
     }
 
-    if (mounted && _onboardingComplete) {
+    if (mounted) {
       unawaited(_checkForUpdates());
     }
   }
@@ -98,71 +122,208 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
   }
 
   Future<void> _checkForUpdates() async {
+    if (!mounted || _updateChecked) {
+      return;
+    }
+
+    _updateChecked = true;
+
+    if (!Platform.isAndroid) {
+      return; // In-app APK updates only make sense on Android builds.
+    }
+
     try {
+      final payload = await _fetchRemoteUpdateInfo();
+      if (payload == null || !mounted) {
+        return;
+      }
+
       final info = await PackageInfo.fromPlatform();
-      final installed = info.version;
+      final installed = info.version.trim();
 
-      final config = await UpdateConfigService.instance
-          .getConfig()
-          .timeout(const Duration(seconds: 8));
-      if (!mounted || config == null) {
-        return;
-      }
-
-      final remote = config.latestVersion;
-      final minSupported = config.minSupportedVersion;
-      if (remote == null || remote.isEmpty) {
-        return;
-      }
-
-      final hasNewer = VersionUtils.isRemoteVersionNewer(
+      final isNewer = VersionUtils.isRemoteVersionNewer(
         installed: installed,
-        remote: remote,
+        remote: payload.version,
       );
 
-      final requiresUpgrade = minSupported != null &&
-          minSupported.isNotEmpty &&
-          VersionUtils.isRemoteVersionNewer(
-            installed: installed,
-            remote: minSupported,
-          );
-
-      if (!hasNewer && !requiresUpgrade) {
+      if (!isNewer) {
         return;
       }
 
-      final apkUrl = (config.apkUrl ?? '').trim();
-      final title = requiresUpgrade ? 'Update Required' : 'Update Available';
-      final body = requiresUpgrade
-          ? 'Version $minSupported or newer is required to continue. You are on $installed.'
-          : 'Version $remote is available. You are on $installed.';
+      await _showUpdateDialog(
+        payload: payload,
+        installed: installed,
+        packageName: info.packageName,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('[update] skipped: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
 
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: !requiresUpgrade,
-        builder: (context) => AlertDialog(
-          title: Text(title),
-          content: Text(body),
-          actions: <Widget>[
-            if (!requiresUpgrade)
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Later'),
-              ),
-            FilledButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                if (apkUrl.isNotEmpty) {
-                  await _launchUrl(apkUrl);
-                }
-              },
-              child: Text(apkUrl.isNotEmpty ? 'Download APK' : 'Update'),
-            ),
+  Future<_RemoteUpdateInfo?> _fetchRemoteUpdateInfo() async {
+    final uri = Uri.tryParse(AppConfig.updateGistUrl);
+    if (uri == null) {
+      return null;
+    }
+
+    final response = await http
+        .get(uri)
+        .timeout(const Duration(seconds: 8));
+
+    if (response.statusCode != 200) {
+      return null;
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final version = (decoded['version'] as String?)?.trim() ?? '';
+    final apkUrl = (decoded['apk'] as String?)?.trim() ?? '';
+    final notes = (decoded['notes'] as String?)?.trim() ?? '';
+    final force = decoded['force'] == true;
+
+    if (version.isEmpty || apkUrl.isEmpty) {
+      return null;
+    }
+
+    return _RemoteUpdateInfo(
+      version: version,
+      apkUrl: apkUrl,
+      force: force,
+      notes: notes,
+    );
+  }
+
+  Future<void> _showUpdateDialog({
+    required _RemoteUpdateInfo payload,
+    required String installed,
+    required String packageName,
+  }) async {
+    if (!mounted) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !payload.force,
+      builder: (context) => AlertDialog(
+        title: const Text('Update Available'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text('Version ${payload.version} is available. You are on $installed.'),
+            if (payload.notes.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 10),
+              Text(payload.notes),
+            ],
           ],
         ),
+        actions: <Widget>[
+          if (!payload.force)
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Later'),
+            ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _downloadAndInstallApk(
+                payload: payload,
+                packageName: packageName,
+              );
+            },
+            child: const Text('Update Now'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _downloadAndInstallApk({
+    required _RemoteUpdateInfo payload,
+    required String packageName,
+  }) async {
+    if (!mounted) {
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    final progress = ValueNotifier<double>(0);
+    final savePath = '${Directory.systemTemp.path}/eduserve-${payload.version}.apk';
+
+    final dio = Dio();
+    Object? error;
+
+    final download = dio.download(
+      payload.apkUrl,
+      savePath,
+      onReceiveProgress: (received, total) {
+        if (total <= 0) {
+          return;
+        }
+        progress.value = received / total;
+      },
+    );
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ValueListenableBuilder<double>(
+        valueListenable: progress,
+        builder: (_, value, __) => AlertDialog(
+          title: const Text('Downloading update'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              LinearProgressIndicator(
+                value: value <= 0 ? null : value.clamp(0, 1),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                value <= 0
+                    ? 'Starting download...'
+                    : '${(value * 100).clamp(0, 100).toStringAsFixed(0)}%',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await download;
+    } catch (e) {
+      error = e;
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).maybePop();
+      }
+    }
+
+    if (error != null) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Update download failed. Please try again later.'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
-    } catch (_) {
-      // Ignore remote update failures.
+      return;
+    }
+
+    try {
+      await InstallPlugin.installApk(savePath);
+    } catch (e) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Could not start install. Opening download link.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      await _launchUrl(payload.apkUrl);
     }
   }
 

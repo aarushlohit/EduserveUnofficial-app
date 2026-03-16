@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:eduserveapp/features/settings/theme_controller.dart';
 import 'package:eduserveapp/features/settings/privacy_policy_screen.dart';
 import 'package:eduserveapp/features/settings/terms_screen.dart';
@@ -20,6 +22,8 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String _version = '-';
+  int _aboutAuthorTapCount = 0;
+  Timer? _aboutAuthorResetTimer;
 
   @override
   void initState() {
@@ -34,6 +38,84 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _version = '${info.version}+${info.buildNumber}';
       });
     }
+  }
+
+  void _handleAboutAuthorTap() {
+    _aboutAuthorResetTimer?.cancel();
+    _aboutAuthorTapCount += 1;
+    _aboutAuthorResetTimer = Timer(const Duration(seconds: 2), () {
+      _aboutAuthorTapCount = 0;
+    });
+
+    if (_aboutAuthorTapCount >= 3) {
+      _aboutAuthorTapCount = 0;
+      _aboutAuthorResetTimer?.cancel();
+      _showAuthorEasterEgg();
+    }
+  }
+
+  Future<void> _showAuthorEasterEgg() async {
+    if (!mounted) {
+      return;
+    }
+
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'About Author',
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (context, animation, __, ___) {
+        final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut);
+        return FadeTransition(
+          opacity: curved,
+          child: Center(
+            child: Material(
+              color: Theme.of(context).cardColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 340),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        'About the Author',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        "I had a crush on her but she didn't understand. It's okay… at least my app is on her phone.",
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Aww'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _aboutAuthorResetTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -104,21 +186,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 6),
           const _SectionHeader('About'),
-          const _SectionCard(
+          _SectionCard(
             child: Column(
               children: <Widget>[
-                ListTile(
+                const ListTile(
                   leading: Icon(Icons.info_outline),
                   title: Text('About App'),
                   subtitle: Text(
                     'Unofficial student utility app for Karunya students.',
                   ),
                 ),
-                Divider(height: 1),
+                const Divider(height: 1),
                 ListTile(
-                  leading: Icon(Icons.person_outline),
-                  title: Text('About Author'),
-                  subtitle: Text('EduServe Companion Team'),
+                  leading: const Icon(Icons.person_outline),
+                  title: const Text('About Author'),
+                  subtitle: const Text('EduServe Companion Team'),
+                  onTap: _handleAboutAuthorTap,
                 ),
               ],
             ),

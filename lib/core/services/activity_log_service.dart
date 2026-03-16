@@ -119,4 +119,63 @@ class ActivityLogService {
     await prefs.setString(AppConfig.dailyCleanupLastRunKey, dateKey);
   }
 
+  Future<void> purgeAllLogsOnce() async {
+    final prefs = await SharedPreferences.getInstance();
+    final alreadyPurged = prefs.getBool(AppConfig.activityLogsPurgedKey) ?? false;
+    if (alreadyPurged) {
+      return;
+    }
+
+    try {
+      // Delete in batches to avoid timeouts.
+      while (true) {
+        final batchDocs = await _firestore
+            .collection(AppConfig.userActivityCollection)
+            .limit(500)
+            .get();
+
+        if (batchDocs.docs.isEmpty) {
+          break;
+        }
+
+        final batch = _firestore.batch();
+        for (final doc in batchDocs.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+      }
+    } catch (e) {
+      debugPrint('[activity] purge all logs failed: $e');
+      // Do not mark as purged if failed; will retry next startup.
+      return;
+    }
+
+    await prefs.setBool(AppConfig.activityLogsPurgedKey, true);
+    debugPrint('[activity] all logs purged once');
+  }
+
+  Future<void> purgeAllLogsNow() async {
+    debugPrint('[activity] force purge requested');
+    try {
+      while (true) {
+        final batchDocs = await _firestore
+            .collection(AppConfig.userActivityCollection)
+            .limit(500)
+            .get();
+
+        if (batchDocs.docs.isEmpty) {
+          break;
+        }
+
+        final batch = _firestore.batch();
+        for (final doc in batchDocs.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+      }
+    } catch (e) {
+      debugPrint('[activity] force purge failed: $e');
+    }
+  }
+
 }
