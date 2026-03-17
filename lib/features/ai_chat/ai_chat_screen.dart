@@ -2,10 +2,8 @@ import 'dart:math';
 import 'dart:async';
 
 import 'package:eduserveapp/core/constants/app_config.dart';
-import 'package:eduserveapp/core/services/activity_log_service.dart';
 import 'package:eduserveapp/core/services/ai_service.dart';
 import 'package:eduserveapp/core/services/analytics_service.dart';
-import 'package:eduserveapp/core/services/app_stats_service.dart';
 import 'package:flutter/material.dart';
 
 class AiChatScreen extends StatefulWidget {
@@ -32,11 +30,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
     AnalyticsService.instance.logAiChatOpened();
     _greeting =
         AppConfig.aiGreetings[Random().nextInt(AppConfig.aiGreetings.length)];
-    ActivityLogService.instance.logCurrentUserAction(
-      uid: widget.uid,
-      action: 'open_ai',
-      tab: 'ai',
-    );
   }
 
   @override
@@ -87,26 +80,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
     try {
       await AnalyticsService.instance
           .logAiMessageSent()
-          .timeout(const Duration(seconds: 4));
-    } catch (_) {
-      // Ignore telemetry failures to keep chat responsive.
-    }
-
-    try {
-      await AppStatsService.instance
-          .logAiMessage()
-          .timeout(const Duration(seconds: 4));
-    } catch (_) {
-      // Ignore telemetry failures to keep chat responsive.
-    }
-
-    try {
-      await ActivityLogService.instance
-          .logCurrentUserAction(
-            uid: widget.uid,
-            action: 'ai_message_sent',
-            tab: 'ai',
-          )
           .timeout(const Duration(seconds: 4));
     } catch (_) {
       // Ignore telemetry failures to keep chat responsive.

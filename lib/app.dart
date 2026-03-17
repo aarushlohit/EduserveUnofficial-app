@@ -6,7 +6,6 @@ import 'package:eduserveapp/core/constants/app_config.dart';
 import 'package:eduserveapp/core/constants/colors.dart';
 import 'package:eduserveapp/core/services/activity_log_service.dart';
 import 'package:eduserveapp/core/services/analytics_service.dart';
-import 'package:eduserveapp/core/services/app_stats_service.dart';
 import 'package:eduserveapp/core/services/hackathon_service.dart';
 import 'package:eduserveapp/core/services/firestore_user_service.dart';
 import 'package:eduserveapp/core/services/notification_center_service.dart';
@@ -23,6 +22,7 @@ import 'package:eduserveapp/features/settings/settings_screen.dart';
 import 'package:eduserveapp/features/settings/theme_controller.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:http/http.dart' as http;
 import 'package:dio/dio.dart';
 import 'package:install_plugin/install_plugin.dart';
@@ -51,7 +51,8 @@ class EduServeCompanionApp extends StatefulWidget {
   State<EduServeCompanionApp> createState() => _EduServeCompanionAppState();
 }
 
-class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
+class _EduServeCompanionAppState extends State<EduServeCompanionApp>
+    with WidgetsBindingObserver {
   final ThemeController _themeController = ThemeController();
   bool _loading = true;
   bool _onboardingComplete = false;
@@ -59,11 +60,30 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
   bool _isAdmin = false;
   String _uid = '';
   bool _updateChecked = false;
+  Timer? _idleTimer;
+  static const Duration _idleTimeout = Duration(minutes: 10);
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_handlePointerEvent);
     _bootstrap();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_uid.isEmpty) return;
+
+    if (state == AppLifecycleState.resumed) {
+      ActivityLogService.instance.startSessionIfNeeded(uid: _uid);
+      _resetIdleTimer();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      ActivityLogService.instance.endSessionIfActive();
+      _cancelIdleTimer();
+    }
   }
 
   Future<void> _bootstrap() async {
@@ -76,17 +96,15 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
       _uid = prefs.getString(AppConfig.profileDocIdKey) ?? '';
 
       if (_uid.isNotEmpty) {
+        await _safeRun(ActivityLogService.instance.initializeLoggingConfig);
         await _safeRun(_refreshRole);
         await _safeRun(_refreshNotificationUnread);
         await _safeRun(ActivityLogService.instance.cleanupLogsIfDue);
-        await _safeRun(
-            () => AppStatsService.instance.updateOnAppOpen(uid: _uid));
         await _safeRun(HackathonService.instance.cleanupExpiredPosts);
+        await _safeRun(
+            () => ActivityLogService.instance.startSessionIfNeeded(uid: _uid));
+        _resetIdleTimer();
       }
-
-      // Force purge legacy activity logs to start production clean.
-      await _safeRun(ActivityLogService.instance.purgeAllLogsNow);
-      await _safeRun(ActivityLogService.instance.purgeAllLogsOnce);
 
       await _safeRun(() async {
         final info = await PackageInfo.fromPlatform();
@@ -167,9 +185,7 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
       return null;
     }
 
-    final response = await http
-        .get(uri)
-        .timeout(const Duration(seconds: 8));
+    final response = await http.get(uri).timeout(const Duration(seconds: 8));
 
     if (response.statusCode != 200) {
       return null;
@@ -215,7 +231,8 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text('Version ${payload.version} is available. You are on $installed.'),
+            Text(
+                'Version ${payload.version} is available. You are on $installed.'),
             if (payload.notes.isNotEmpty) ...<Widget>[
               const SizedBox(height: 10),
               Text(payload.notes),
@@ -253,7 +270,8 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
 
     final messenger = ScaffoldMessenger.of(context);
     final progress = ValueNotifier<double>(0);
-    final savePath = '${Directory.systemTemp.path}/eduserve-${payload.version}.apk';
+    final savePath =
+        '${Directory.systemTemp.path}/eduserve-${payload.version}.apk';
 
     final dio = Dio();
     Object? error;
@@ -337,8 +355,12 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
     _onboardingComplete = true;
 
     if (_uid.isNotEmpty) {
+      await _safeRun(ActivityLogService.instance.initializeLoggingConfig);
       await _safeRun(_refreshRole);
       await _safeRun(_refreshNotificationUnread);
+      await _safeRun(
+          () => ActivityLogService.instance.startSessionIfNeeded(uid: _uid));
+      _resetIdleTimer();
     }
 
     if (mounted) {
@@ -357,6 +379,8 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
   }
 
   Future<void> _logout() async {
+    await ActivityLogService.instance.endSessionIfActive();
+    _cancelIdleTimer();
     await FirebaseAuth.instance.signOut();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(AppConfig.onboardingCompleteKey, false);
@@ -397,6 +421,34 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
         const SnackBar(content: Text('Could not open download link.')),
       );
     }
+  }
+
+  void _handlePointerEvent(PointerEvent event) {
+    if (_uid.isEmpty) return;
+    _resetIdleTimer();
+  }
+
+  void _resetIdleTimer() {
+    _idleTimer?.cancel();
+    _idleTimer = Timer(_idleTimeout, () {
+      ActivityLogService.instance.endSessionIfActive();
+    });
+  }
+
+  void _cancelIdleTimer() {
+    _idleTimer?.cancel();
+    _idleTimer = null;
+  }
+
+  @override
+  void dispose() {
+    ActivityLogService.instance.endSessionIfActive();
+    _cancelIdleTimer();
+    GestureBinding.instance.pointerRouter
+        .removeGlobalRoute(_handlePointerEvent);
+    WidgetsBinding.instance.removeObserver(this);
+    _themeController.dispose();
+    super.dispose();
   }
 
   @override
@@ -465,8 +517,7 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        backgroundColor:
-            isDark ? darkBackground : AppColors.backgroundLight,
+        backgroundColor: isDark ? darkBackground : AppColors.backgroundLight,
         foregroundColor: isDark ? Colors.white : Colors.black,
         titleTextStyle: TextStyle(
           color: isDark ? Colors.white : Colors.black,
@@ -501,7 +552,8 @@ class _EduServeCompanionAppState extends State<EduServeCompanionApp> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: isDark ? accentColor : primaryColor, width: 1.5),
+          borderSide: BorderSide(
+              color: isDark ? accentColor : primaryColor, width: 1.5),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -588,7 +640,6 @@ class _MainShellState extends State<_MainShell> {
       action: 'open_home',
       tab: 'home',
     );
-    AppStatsService.instance.logTabOpen('home');
   }
 
   void _openTab(int value) {
@@ -619,7 +670,6 @@ class _MainShellState extends State<_MainShell> {
       action: action,
       tab: tab,
     );
-    AppStatsService.instance.logTabOpen(tab);
   }
 
   @override
@@ -659,13 +709,12 @@ class _MainShellState extends State<_MainShell> {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(
-              color: isDark ? const Color(0xFF262626) : Color(0xFFEFEFEF),
-              width: 0.5,
-            ),
-          )
-        ),
+            border: Border(
+          top: BorderSide(
+            color: isDark ? const Color(0xFF262626) : Color(0xFFEFEFEF),
+            width: 0.5,
+          ),
+        )),
         child: BottomNavigationBar(
           currentIndex: _index,
           onTap: _openTab,
@@ -690,14 +739,18 @@ class _MainShellState extends State<_MainShell> {
             ),
             BottomNavigationBarItem(
               icon: _TabIconWithDot(
-                icon: _index == 3 ? Icons.auto_awesome : Icons.auto_awesome_outlined,
+                icon: _index == 3
+                    ? Icons.auto_awesome
+                    : Icons.auto_awesome_outlined,
                 showDot: _tabRedDots[3] == true,
               ),
               label: 'AI',
             ),
             BottomNavigationBarItem(
               icon: _TabIconWithDot(
-                icon: _index == 4 ? Icons.grid_view_sharp : Icons.grid_view_outlined,
+                icon: _index == 4
+                    ? Icons.grid_view_sharp
+                    : Icons.grid_view_outlined,
                 showDot: _tabRedDots[4] == true,
               ),
               label: 'Add-ons',
@@ -769,7 +822,10 @@ class _StartupLoaderState extends State<_StartupLoader>
     final gradient = LinearGradient(
       colors: isDark
           ? const <Color>[Color(0xFF0A0A0A), Color(0xFF0F172A)]
-          : <Color>[Colors.white, AppColors.emeraldPrimary.withValues(alpha: 0.08)],
+          : <Color>[
+              Colors.white,
+              AppColors.emeraldPrimary.withValues(alpha: 0.08)
+            ],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
@@ -798,7 +854,8 @@ class _StartupLoaderState extends State<_StartupLoader>
                     border: Border.all(color: borderColor, width: 1),
                     boxShadow: <BoxShadow>[
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.10),
+                        color: Colors.black
+                            .withValues(alpha: isDark ? 0.35 : 0.10),
                         blurRadius: 28,
                         offset: const Offset(0, 16),
                       ),
@@ -813,8 +870,14 @@ class _StartupLoaderState extends State<_StartupLoader>
                           shape: BoxShape.circle,
                           gradient: LinearGradient(
                             colors: isDark
-                                ? const <Color>[AppColors.emeraldPrimary, Color(0xFF22D3EE)]
-                                : const <Color>[AppColors.emeraldPrimary, AppColors.emeraldDark],
+                                ? const <Color>[
+                                    AppColors.emeraldPrimary,
+                                    Color(0xFF22D3EE)
+                                  ]
+                                : const <Color>[
+                                    AppColors.emeraldPrimary,
+                                    AppColors.emeraldDark
+                                  ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
@@ -845,7 +908,8 @@ class _StartupLoaderState extends State<_StartupLoader>
                         borderRadius: BorderRadius.circular(12),
                         child: LinearProgressIndicator(
                           minHeight: 6,
-                          color: theme.colorScheme.primary.withValues(alpha: 0.90),
+                          color:
+                              theme.colorScheme.primary.withValues(alpha: 0.90),
                           backgroundColor:
                               theme.colorScheme.primary.withValues(alpha: 0.18),
                         ),

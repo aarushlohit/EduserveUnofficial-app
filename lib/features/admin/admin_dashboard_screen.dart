@@ -27,8 +27,12 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     with SingleTickerProviderStateMixin {
-  late final String _todayDocId;
   late final TabController _tabController;
+  late Future<_DashboardInsight> _dashboardInsightFuture;
+  int _activeTabIndex = 0;
+  bool _clearingLogs = false;
+  String _activityStreamKey = 'activity';
+  String _sessionsStreamKey = 'sessions';
 
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _userDocs =
       <QueryDocumentSnapshot<Map<String, dynamic>>>[];
@@ -40,15 +44,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _todayDocId = _formatTodayDocId();
+    _tabController = TabController(length: 5, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) {
+        setState(() => _activeTabIndex = _tabController.index);
+      }
+    });
+    _dashboardInsightFuture = _loadDashboardInsight();
     ActivityLogService.instance.logCurrentUserAction(
       uid: widget.uid,
       action: 'open_admin_dashboard',
       tab: 'admin',
     );
     unawaited(ActivityLogService.instance.cleanupLogsIfDue());
-    unawaited(_primeAnalyticsDocuments());
     _loadInitialUsers();
   }
 
@@ -58,70 +66,207 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     super.dispose();
   }
 
-  Future<void> _primeAnalyticsDocuments() async {
-    final dailyRef = FirebaseFirestore.instance
-        .collection(AppConfig.analyticsDailyCollection)
-        .doc(_todayDocId);
-    final globalRef = FirebaseFirestore.instance
-        .collection(AppConfig.analyticsGlobalCollection)
-        .doc(AppConfig.analyticsGlobalDoc);
-
-    // Ensure today's doc exists with zeroed counters so the dashboard never renders empty.
-    await dailyRef.set(
-      <String, dynamic>{
-        'appOpens': FieldValue.increment(0),
-        'homeOpens': FieldValue.increment(0),
-        'eduserveOpens': FieldValue.increment(0),
-        'resultsOpens': FieldValue.increment(0),
-        'aiOpens': FieldValue.increment(0),
-        'addonsOpens': FieldValue.increment(0),
-        'lastUpdatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-
-    // Ensure global doc exists with zeroed counters.
-    await globalRef.set(
-      <String, dynamic>{
-        'activeUsersToday': FieldValue.increment(0),
-        'totalUsers': FieldValue.increment(0),
-        'aiMessages': FieldValue.increment(0),
-        'lastUpdatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-  }
-
-  String _formatTodayDocId() {
-    final now = DateTime.now();
-    final m = now.month.toString().padLeft(2, '0');
-    final d = now.day.toString().padLeft(2, '0');
-    return '${now.year}-$m-$d';
-  }
-
-  String _deriveMostUsedTab(Map<String, dynamic> daily) {
-    final tabCounts = <String, int>{
-      'home': (daily['homeOpens'] as num?)?.toInt() ?? 0,
-      'eduserve': (daily['eduserveOpens'] as num?)?.toInt() ?? 0,
-      'results': (daily['resultsOpens'] as num?)?.toInt() ?? 0,
-      'ai': (daily['aiOpens'] as num?)?.toInt() ?? 0,
-      'addons': (daily['addonsOpens'] as num?)?.toInt() ?? 0,
-    };
-
-    var maxTab = 'home';
-    var maxCount = -1;
-    tabCounts.forEach((tab, count) {
-      if (count > maxCount) {
-        maxCount = count;
-        maxTab = tab;
-      }
-    });
-    return maxTab;
-  }
-
   String _formatDate(Timestamp? ts) {
     if (ts == null) return '-';
     return DateFormat('MMM d, y').format(ts.toDate());
+  }
+
+  String _formatDateTime(Timestamp? ts) {
+    if (ts == null) return '-';
+    return DateFormat('MMM d, h:mm a').format(ts.toDate());
+  }
+
+  String _formatDuration(num? seconds) {
+    if (seconds == null) return '-';
+    final total = seconds.toInt();
+    final mins = total ~/ 60;
+    final secs = total % 60;
+    if (mins == 0) return '${secs}s';
+    return '${mins}m ${secs.toString().padLeft(2, '0')}s';
+  }
+
+  String _mostUsedTabFromUsage(Map<dynamic, dynamic>? usage) {
+    final counts = _extractTabUsageCounts(usage);
+
+    String topTab = 'home';
+    var maxCount = 0;
+    counts.forEach((tab, opens) {
+      if (opens > maxCount) {
+        maxCount = opens;
+        topTab = tab;
+      }
+    });
+
+    return maxCount == 0 ? '-' : topTab;
+  }
+
+  Map<String, int> _extractTabUsageCounts(Map<dynamic, dynamic>? usage) {
+    final tabUsage = usage ?? <dynamic, dynamic>{};
+    return <String, int>{
+      'home': (tabUsage['home'] as num?)?.toInt() ?? 0,
+      'eduserve': (tabUsage['eduserve'] as num?)?.toInt() ?? 0,
+      'results': (tabUsage['results'] as num?)?.toInt() ?? 0,
+      'ai': (tabUsage['ai'] as num?)?.toInt() ?? 0,
+      'addons': (tabUsage['addons'] as num?)?.toInt() ?? 0,
+    };
+  }
+
+  String _tabLabel(String tabKey) {
+    switch (tabKey) {
+      case 'home':
+        return 'Home';
+      case 'eduserve':
+        return 'EduServe';
+      case 'results':
+        return 'Results';
+      case 'ai':
+        return 'AI';
+      case 'addons':
+        return 'Add-ons';
+      default:
+        return tabKey;
+    }
+  }
+
+  Future<_DashboardInsight> _loadDashboardInsight() async {
+    final usersFuture = FirebaseFirestore.instance
+        .collection(AppConfig.usersCollection)
+        .count()
+        .get();
+
+    final sessionDocsFuture = FirebaseFirestore.instance
+        .collection(AppConfig.userSessionsCollection)
+        .orderBy('start', descending: true)
+        .limit(200)
+        .get();
+
+    final results = await Future.wait<dynamic>(
+      <Future<dynamic>>[
+        usersFuture,
+        sessionDocsFuture,
+      ],
+    );
+
+    final usersCount = (results[0] as AggregateQuerySnapshot).count ?? 0;
+    final sessionDocs =
+        (results[1] as QuerySnapshot<Map<String, dynamic>>).docs;
+
+    final todayStart = DateTime.now();
+    final todayCutoff =
+        DateTime(todayStart.year, todayStart.month, todayStart.day);
+
+    final validSessions = sessionDocs.where((doc) {
+      final duration = (doc.data()['duration'] as num?)?.toInt() ?? 0;
+      return duration >= 2;
+    }).toList();
+
+    final activeUsersToday = <String>{};
+    for (final doc in validSessions) {
+      final uid = (doc.data()['uid'] as String?)?.trim() ?? '';
+      final start = doc.data()['start'] as Timestamp?;
+      if (uid.isNotEmpty &&
+          start != null &&
+          start.toDate().isAfter(todayCutoff)) {
+        activeUsersToday.add(uid);
+      }
+    }
+
+    num totalDurationSeconds = 0;
+    var durationDocsCount = 0;
+    for (final doc in validSessions) {
+      final duration = doc.data()['duration'] as num?;
+      if (duration != null && duration >= 0) {
+        totalDurationSeconds += duration;
+        durationDocsCount += 1;
+      }
+    }
+
+    final averageDurationSeconds = durationDocsCount == 0
+        ? 0
+        : (totalDurationSeconds / durationDocsCount).round();
+
+    final aggregatedTabUsage = <String, int>{
+      'home': 0,
+      'eduserve': 0,
+      'results': 0,
+      'ai': 0,
+      'addons': 0,
+    };
+    for (final doc in validSessions) {
+      final tabCounts = _extractTabUsageCounts(
+          doc.data()['tabCounts'] as Map<dynamic, dynamic>?);
+      tabCounts.forEach((tab, opens) {
+        aggregatedTabUsage[tab] = (aggregatedTabUsage[tab] ?? 0) + opens;
+      });
+    }
+
+    debugPrint('[AdminDashboard] Extracted opens=$aggregatedTabUsage');
+
+    var mostUsedTab = '-';
+    var mostUsedCount = 0;
+    aggregatedTabUsage.forEach((tab, opens) {
+      if (opens > mostUsedCount) {
+        mostUsedCount = opens;
+        mostUsedTab = _tabLabel(tab);
+      }
+    });
+
+    final totalTabUsage =
+        aggregatedTabUsage.values.fold<int>(0, (total, value) => total + value);
+    final tabUsagePercentages = <String, double>{};
+    aggregatedTabUsage.forEach((tab, opens) {
+      if (totalTabUsage == 0) {
+        tabUsagePercentages[tab] = 0;
+      } else {
+        tabUsagePercentages[tab] = (opens / totalTabUsage) * 100;
+      }
+    });
+
+    debugPrint(
+      '[AdminDashboard] Tab opens: $aggregatedTabUsage, '
+      'total=$totalTabUsage, percentages=$tabUsagePercentages',
+    );
+
+    return _DashboardInsight(
+      totalUsers: usersCount,
+      activeSessions: activeUsersToday.length,
+      averageSessionDurationSeconds: averageDurationSeconds,
+      mostUsedTab: mostUsedTab,
+      tabUsagePercentages: tabUsagePercentages,
+      hasAnalyticsData: validSessions.isNotEmpty,
+    );
+  }
+
+  Future<void> _showUserDetail(Map<String, dynamic> data) async {
+    final name = (data['name'] as String?)?.trim() ?? 'User';
+    final tabUsage =
+        _extractTabUsageCounts(data['tabUsage'] as Map<dynamic, dynamic>?);
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('$name - Usage Details'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('Home: ${tabUsage['home'] ?? 0}'),
+              Text('EduServe: ${tabUsage['eduserve'] ?? 0}'),
+              Text('Results: ${tabUsage['results'] ?? 0}'),
+              Text('AI: ${tabUsage['ai'] ?? 0}'),
+              Text('Add-ons: ${tabUsage['addons'] ?? 0}'),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _loadInitialUsers() async {
@@ -223,8 +368,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         bottom: TabBar(
           controller: _tabController,
           tabs: const <Widget>[
+            Tab(text: 'Overview'),
             Tab(text: 'Users'),
             Tab(text: 'Activity'),
+            Tab(text: 'Sessions'),
             Tab(text: 'Posts'),
           ],
         ),
@@ -245,12 +392,137 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           ),
         ],
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: IndexedStack(
+        index: _activeTabIndex,
         children: <Widget>[
+          _buildOverviewTab(),
           _buildUsersTab(),
           _buildActivityTab(),
+          _buildSessionsTab(),
           _buildPostsTab(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverviewTab() {
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() {
+          _dashboardInsightFuture = _loadDashboardInsight();
+        });
+      },
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Expanded(child: _SectionTitle('Overview')),
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _dashboardInsightFuture = _loadDashboardInsight();
+                  });
+                },
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Refresh analytics',
+              ),
+            ],
+          ),
+          FutureBuilder<_DashboardInsight>(
+            future: _dashboardInsightFuture,
+            builder: (context, snapshot) {
+              final data = snapshot.data;
+
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  data == null) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+
+              if (snapshot.hasError && data == null) {
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text('Failed to load analytics: ${snapshot.error}'),
+                  ),
+                );
+              }
+
+              if (data == null) {
+                return const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('No analytics available.'),
+                  ),
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: <Widget>[
+                      _InsightCard(
+                        label: 'Total Users',
+                        value: data.totalUsers.toString(),
+                      ),
+                      _InsightCard(
+                        label: 'Active Users',
+                        value: data.activeSessions.toString(),
+                      ),
+                      _InsightCard(
+                        label: 'Avg Session Duration',
+                        value:
+                            _formatDuration(data.averageSessionDurationSeconds),
+                      ),
+                      _InsightCard(
+                        label: 'Most Used Tab',
+                        value: data.mostUsedTab,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  const _SectionTitle('Tab Usage Distribution'),
+                  if (!data.hasAnalyticsData)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('No analytics data yet'),
+                      ),
+                    )
+                  else
+                    ...<MapEntry<String, double>>[
+                      MapEntry(
+                        'eduserve',
+                        data.tabUsagePercentages['eduserve'] ?? 0,
+                      ),
+                      MapEntry('ai', data.tabUsagePercentages['ai'] ?? 0),
+                      MapEntry(
+                        'results',
+                        data.tabUsagePercentages['results'] ?? 0,
+                      ),
+                      MapEntry(
+                        'addons',
+                        data.tabUsagePercentages['addons'] ?? 0,
+                      ),
+                      MapEntry('home', data.tabUsagePercentages['home'] ?? 0),
+                    ].map((entry) {
+                      return _UsageBarRow(
+                        label: _tabLabel(entry.key),
+                        percentage: entry.value,
+                      );
+                    }),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
@@ -263,8 +535,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         padding: const EdgeInsets.all(16),
         children: <Widget>[
           const _SectionTitle('Users'),
+          const SizedBox(height: 4),
           if (_loadingUsers)
-            const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()))
+            const Center(
+                child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: CircularProgressIndicator()))
           else if (_userDocs.isEmpty)
             const Card(
               child: Padding(
@@ -285,6 +561,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   final gender = (data['gender'] as String?)?.trim();
                   final phone = (data['phone'] as String?)?.trim();
                   final createdAt = data['createdAt'];
+                  final tabUsage = data['tabUsage'] as Map<String, dynamic>?;
+                  final mostUsedTab = _mostUsedTabFromUsage(tabUsage);
 
                   final subtitleLines = <String>[
                     if (email.isNotEmpty) email,
@@ -293,6 +571,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       '${dept.toUpperCase()} • Year ${year ?? '-'}',
                     if (gender != null && gender.isNotEmpty) 'Gender: $gender',
                     if (phone != null && phone.isNotEmpty) 'Phone: $phone',
+                    'Most used tab: $mostUsedTab',
                     'Joined: ${_formatDate(createdAt is Timestamp ? createdAt : null)}',
                   ]..removeWhere((e) => e.trim().isEmpty);
 
@@ -301,6 +580,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       leading: const Icon(Icons.person_outline),
                       title: Text(name.isEmpty ? 'User' : name),
                       subtitle: Text(subtitleLines.join('\n')),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _showUserDetail(data),
                     ),
                   );
                 }),
@@ -316,7 +597,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.expand_more),
-                      label: Text(_loadingMoreUsers ? 'Loading...' : 'Load more'),
+                      label:
+                          Text(_loadingMoreUsers ? 'Loading...' : 'Load more'),
                     ),
                   ),
               ],
@@ -330,22 +612,60 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
-        const _SectionTitle('Recent Activity'),
+        Row(
+          children: <Widget>[
+            const Expanded(child: _SectionTitle('Recent Tab Activity')),
+            IconButton(
+              onPressed: () {
+                setState(() {
+                  _activityStreamKey =
+                      DateTime.now().millisecondsSinceEpoch.toString();
+                });
+              },
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh activity',
+            ),
+          ],
+        ),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            FilledButton.icon(
+              onPressed: _clearingLogs ? null : _clearActivityLogs,
+              icon: _clearingLogs
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.delete_forever_outlined),
+              label: Text(_clearingLogs ? 'Clearing...' : 'Clear sessions'),
+            ),
+            OutlinedButton.icon(
+              onPressed: _loadInitialUsers,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh users'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
         StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          key: ValueKey(_activityStreamKey),
           stream: FirebaseFirestore.instance
-              .collection(AppConfig.userActivityCollection)
-              .orderBy('timestamp', descending: true)
-              .limit(50)
+              .collection(AppConfig.userSessionsCollection)
+              .orderBy('start', descending: true)
+              .limit(10)
               .snapshots(),
           builder: (context, snapshot) {
-            final docs = snapshot.data?.docs ??
-                <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-            final filtered = docs.where((doc) {
-              final role = doc.data()['role'];
-              return role != 'admin';
-            }).toList();
-
-            if (filtered.isEmpty) {
+            final docs = (snapshot.data?.docs ??
+                    <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+                .where(
+                  (doc) =>
+                      ((doc.data()['duration'] as num?)?.toInt() ?? 0) >= 2,
+                )
+                .toList();
+            if (docs.isEmpty) {
               return const Card(
                 child: Padding(
                   padding: EdgeInsets.all(16),
@@ -355,34 +675,122 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             }
 
             return Column(
-              children: filtered.map((doc) {
+              children: docs.map((doc) {
                 final data = doc.data();
-                final ts = data['timestamp'];
-                DateTime? time;
-                if (ts is Timestamp) {
-                  time = ts.toDate();
-                }
-                final formatter = DateFormat('MMM d, h:mm a');
-                final when = time != null ? formatter.format(time) : '-';
-                final name = (data['name'] as String?)?.trim() ?? 'User';
-                final reg = (data['registerNumber'] as String?)?.trim();
-                final dept = (data['dept'] as String?)?.trim();
-                final action = (data['action'] as String?) ?? 'activity';
+                final email = (data['email'] as String?)?.trim() ?? '';
+                final uid = (data['uid'] as String?)?.trim() ?? '';
+                final startTime = data['start'] as Timestamp?;
+                final endTime = data['end'] as Timestamp?;
+                final duration = data['duration'] as num?;
+                final tabCounts = _extractTabUsageCounts(
+                    data['tabCounts'] as Map<dynamic, dynamic>?);
+                final totalOpens = (data['totalTabs'] as num?)?.toInt() ??
+                    tabCounts.values
+                        .fold<int>(0, (total, value) => total + value);
 
-                final title = [
-                  name,
-                  if (reg != null && reg.isNotEmpty) '($reg)',
-                ].join(' ').trim();
+                var topTab = '-';
+                var topCount = 0;
+                tabCounts.forEach((tab, opens) {
+                  if (opens > topCount) {
+                    topCount = opens;
+                    topTab = _tabLabel(tab);
+                  }
+                });
 
                 final subtitleLines = <String>[
-                  if (dept != null && dept.isNotEmpty) dept.toUpperCase(),
-                  action.replaceFirst('open_', 'Opened '),
-                  when,
-                ]..removeWhere((e) => e.trim().isEmpty);
+                  if (email.isNotEmpty) 'Email: $email',
+                  if (uid.isNotEmpty) 'UID: $uid',
+                  'Start: ${_formatDateTime(startTime)}',
+                  'End: ${_formatDateTime(endTime)}',
+                  'Duration: ${_formatDuration(duration)}',
+                  'Total tab opens: $totalOpens',
+                  'Most used tab: $topTab',
+                ];
 
                 return Card(
                   child: ListTile(
-                    title: Text(title.isEmpty ? 'User' : title),
+                    title: Text(uid.isEmpty ? 'Session' : uid),
+                    subtitle: Text(subtitleLines.join('\n')),
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSessionsTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            const Expanded(child: _SectionTitle('Recent Sessions')),
+            IconButton(
+              onPressed: () => setState(
+                () => _sessionsStreamKey =
+                    DateTime.now().millisecondsSinceEpoch.toString(),
+              ),
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh sessions',
+            ),
+          ],
+        ),
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          key: ValueKey(_sessionsStreamKey),
+          stream: FirebaseFirestore.instance
+              .collection(AppConfig.userSessionsCollection)
+              .orderBy('start', descending: true)
+              .limit(10)
+              .snapshots(),
+          builder: (context, snapshot) {
+            final docs = (snapshot.data?.docs ??
+                    <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+                .where(
+                  (doc) =>
+                      ((doc.data()['duration'] as num?)?.toInt() ?? 0) >= 2,
+                )
+                .toList();
+            if (docs.isEmpty) {
+              return const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No recent sessions.'),
+                ),
+              );
+            }
+
+            return Column(
+              children: docs.map((doc) {
+                final data = doc.data();
+                final uid = (data['uid'] as String?)?.trim() ?? '';
+                final email = (data['email'] as String?)?.trim() ?? '';
+                final sessionStart = data['start'] as Timestamp?;
+                final sessionEnd = data['end'] as Timestamp?;
+                final duration = data['duration'] as num?;
+                final tabCounts = _extractTabUsageCounts(
+                    data['tabCounts'] as Map<dynamic, dynamic>?);
+                final totalOpens = (data['totalTabs'] as num?)?.toInt() ??
+                    tabCounts.values
+                        .fold<int>(0, (total, value) => total + value);
+                final mostUsedTab =
+                    (data['mostUsedTab'] as String?)?.trim() ?? '-';
+
+                final subtitleLines = <String>[
+                  if (email.isNotEmpty) 'Email: $email',
+                  if (uid.isNotEmpty) 'UID: $uid',
+                  'Start: ${_formatDateTime(sessionStart)}',
+                  'End: ${_formatDateTime(sessionEnd)}',
+                  'Duration: ${_formatDuration(duration)}',
+                  'Total tab opens: $totalOpens',
+                  'Most used tab: ${_tabLabel(mostUsedTab)}',
+                ];
+
+                return Card(
+                  child: ListTile(
+                    title: Text(uid.isEmpty ? 'Session' : uid),
                     subtitle: Text(subtitleLines.join('\n')),
                   ),
                 );
@@ -460,7 +868,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                               child: Image.network(
                                 imageUrl,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined),
+                                errorBuilder: (_, __, ___) =>
+                                    const Icon(Icons.broken_image_outlined),
                               ),
                             ),
                           )
@@ -478,7 +887,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           icon: const Icon(Icons.delete_outline),
                           onPressed: () async {
                             await PostService.instance.deletePost(doc.id);
-                            await ActivityLogService.instance.logCurrentUserAction(
+                            await ActivityLogService.instance
+                                .logCurrentUserAction(
                               uid: widget.uid,
                               action: 'delete_post',
                               tab: 'admin',
@@ -494,6 +904,115 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           },
         ),
       ],
+    );
+  }
+
+  Future<void> _clearActivityLogs() async {
+    setState(() => _clearingLogs = true);
+    try {
+      await ActivityLogService.instance.purgeAllLogsNow();
+      await ActivityLogService.instance.purgeAllLogsOnce();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sessions cleared')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to clear sessions: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _clearingLogs = false);
+      }
+    }
+  }
+}
+
+class _DashboardInsight {
+  const _DashboardInsight({
+    required this.totalUsers,
+    required this.activeSessions,
+    required this.averageSessionDurationSeconds,
+    required this.mostUsedTab,
+    required this.tabUsagePercentages,
+    required this.hasAnalyticsData,
+  });
+
+  final int totalUsers;
+  final int activeSessions;
+  final int averageSessionDurationSeconds;
+  final String mostUsedTab;
+  final Map<String, double> tabUsagePercentages;
+  final bool hasAnalyticsData;
+}
+
+class _UsageBarRow extends StatelessWidget {
+  const _UsageBarRow({
+    required this.label,
+    required this.percentage,
+  });
+
+  final String label;
+  final double percentage;
+
+  String _buildBlocks(double clampedPercentage) {
+    const totalBlocks = 20;
+    final filledBlocks = ((clampedPercentage / 100) * totalBlocks).round();
+    final filled = List<String>.filled(filledBlocks, '█').join();
+    final empty = List<String>.filled(totalBlocks - filledBlocks, '░').join();
+    return '$filled$empty';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final clamped = percentage.clamp(0, 100).toDouble();
+    final blocks = _buildBlocks(clamped);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Text(
+        '$label  $blocks ${clamped.round()}%',
+        style: Theme.of(context).textTheme.bodyMedium,
+      ),
+    );
+  }
+}
+
+class _InsightCard extends StatelessWidget {
+  const _InsightCard({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: SizedBox(
+        width: 165,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -537,7 +1056,8 @@ class _PostEditorDialogState extends State<_PostEditorDialog> {
     _title = TextEditingController(text: (data?['title'] as String?) ?? '');
     _description =
         TextEditingController(text: (data?['description'] as String?) ?? '');
-    _imageUrl = TextEditingController(text: (data?['imageUrl'] as String?) ?? '');
+    _imageUrl =
+        TextEditingController(text: (data?['imageUrl'] as String?) ?? '');
     _link = TextEditingController(text: (data?['link'] as String?) ?? '');
     _isDraft = data?['isDraft'] == true;
 
@@ -575,7 +1095,8 @@ class _PostEditorDialogState extends State<_PostEditorDialog> {
             const SizedBox(height: 8),
             TextField(
               controller: _imageUrl,
-              decoration: const InputDecoration(labelText: 'Image URL (optional)'),
+              decoration:
+                  const InputDecoration(labelText: 'Image URL (optional)'),
             ),
             const SizedBox(height: 8),
             TextField(
@@ -668,7 +1189,8 @@ class _PreviewCard extends StatelessWidget {
                   imageUrl,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                     alignment: Alignment.center,
                     child: const Icon(Icons.broken_image_outlined),
                   ),
@@ -679,7 +1201,9 @@ class _PreviewCard extends StatelessWidget {
             leading: const Icon(Icons.campaign_outlined),
             title: Text(title.isEmpty ? 'Preview Title' : title),
             subtitle: Text(
-              subtitleLines.isEmpty ? 'Preview description' : subtitleLines.join('\n'),
+              subtitleLines.isEmpty
+                  ? 'Preview description'
+                  : subtitleLines.join('\n'),
             ),
             trailing: hasLink ? const Icon(Icons.open_in_new, size: 18) : null,
           ),
@@ -700,40 +1224,10 @@ class _SectionTitle extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         label,
-        style:
-            Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color:
-            Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          Text(label, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style:
-                Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
-        ],
+        style: Theme.of(context)
+            .textTheme
+            .titleLarge
+            ?.copyWith(fontWeight: FontWeight.w700),
       ),
     );
   }

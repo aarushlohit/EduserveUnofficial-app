@@ -15,6 +15,7 @@ dependencies:
 
   # WebView + Chrome Custom Tabs (for Google OAuth compliance)
   flutter_inappwebview: ^6.1.5
+  webview_flutter: ^4.8.0
 
   # Secure token/cookie storage (uses Android Keystore / iOS Keychain)
   flutter_secure_storage: ^9.2.2

@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:eduserveapp/core/constants/app_config.dart';
 import 'package:eduserveapp/core/constants/colors.dart';
 import 'package:eduserveapp/core/services/analytics_service.dart';
-import 'package:eduserveapp/core/services/app_stats_service.dart';
 import 'package:eduserveapp/core/services/firestore_user_service.dart';
 import 'package:eduserveapp/core/services/notification_center_service.dart';
 import 'package:eduserveapp/core/services/notification_service.dart';
@@ -205,17 +204,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       } catch (_) {
         syncedToCloud = false;
       }
-
-      // Track global user count once per successful signup.
-      await AppStatsService.instance.incrementTotalUsers();
-
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(AppConfig.onboardingCompleteKey, true);
       await prefs.setString(AppConfig.profileDocIdKey, uid);
       await prefs.setBool(AppConfig.profileSyncPendingKey, !syncedToCloud);
 
-      final greeting =
-          AppConfig.loginGreetings[Random().nextInt(AppConfig.loginGreetings.length)];
+      final greeting = AppConfig
+          .loginGreetings[Random().nextInt(AppConfig.loginGreetings.length)];
       await NotificationCenterService.instance.appendLoginGreeting(greeting);
       await NotificationService.instance.showNow(
         id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
@@ -281,8 +276,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       await prefs.setBool(AppConfig.onboardingCompleteKey, true);
       await prefs.setString(AppConfig.profileDocIdKey, uid);
 
-      final greeting =
-          AppConfig.loginGreetings[Random().nextInt(AppConfig.loginGreetings.length)];
+      final greeting = AppConfig
+          .loginGreetings[Random().nextInt(AppConfig.loginGreetings.length)];
       await NotificationCenterService.instance.appendLoginGreeting(greeting);
       await NotificationService.instance.showNow(
         id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
@@ -318,7 +313,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Almost done. Please tap continue again.')),
+        const SnackBar(
+            content: Text('Almost done. Please tap continue again.')),
       );
     } finally {
       if (mounted) {
@@ -503,18 +499,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).brightness == Brightness.dark
+                            color: Theme.of(context).brightness ==
+                                    Brightness.dark
                                 ? AppColors.emeraldDark.withValues(alpha: 0.20)
                                 : Colors.white,
                             border: Border.all(
-                              color: AppColors.emeraldPrimary.withValues(alpha: 0.22),
+                              color: AppColors.emeraldPrimary
+                                  .withValues(alpha: 0.22),
                             ),
                             borderRadius: BorderRadius.circular(14),
-                            boxShadow: Theme.of(context).brightness == Brightness.dark
+                            boxShadow: Theme.of(context).brightness ==
+                                    Brightness.dark
                                 ? null
                                 : <BoxShadow>[
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.05),
+                                      color:
+                                          Colors.black.withValues(alpha: 0.05),
                                       blurRadius: 14,
                                       offset: const Offset(0, 8),
                                     ),
@@ -526,7 +526,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 TextFormField(
                                   controller: _nameController,
                                   textInputAction: TextInputAction.next,
-                                  autofillHints: const <String>[AutofillHints.name],
+                                  autofillHints: const <String>[
+                                    AutofillHints.name
+                                  ],
                                   autovalidateMode:
                                       AutovalidateMode.onUserInteraction,
                                   decoration: const InputDecoration(
@@ -544,7 +546,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 TextFormField(
                                   controller: _emailController,
                                   textInputAction: TextInputAction.next,
-                                  autofillHints: const <String>[AutofillHints.email],
+                                  autofillHints: const <String>[
+                                    AutofillHints.email
+                                  ],
                                   autovalidateMode:
                                       AutovalidateMode.onUserInteraction,
                                   decoration: const InputDecoration(
@@ -553,11 +557,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   ),
                                   keyboardType: TextInputType.emailAddress,
                                   validator: (value) {
-                                    final email = value?.trim().toLowerCase() ?? '';
+                                    final email =
+                                        value?.trim().toLowerCase() ?? '';
                                     if (email.isEmpty) {
                                       return 'Enter your KMail';
                                     }
-                                    if (!email.endsWith(AppConfig.kmailDomain)) {
+                                    if (!email
+                                        .endsWith(AppConfig.kmailDomain)) {
                                       return 'Email must end with ${AppConfig.kmailDomain}';
                                     }
                                     return null;
@@ -751,7 +757,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 ? const SizedBox(
                                     height: 20,
                                     width: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
                                   )
                                 : const Text('Complete Signup'),
                           ),
@@ -762,7 +769,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           child: OutlinedButton(
                             onPressed: _saving
                                 ? null
-                                : () => setState(() => _stage = _AuthStage.choice),
+                                : () =>
+                                    setState(() => _stage = _AuthStage.choice),
                             child: const Text('Back'),
                           ),
                         ),
@@ -839,7 +847,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
-                          onPressed: () => setState(() => _stage = _AuthStage.signup),
+                          onPressed: () =>
+                              setState(() => _stage = _AuthStage.signup),
                           icon: const Icon(Icons.person_add_alt_1),
                           label: const Text('Create Account (Signup)'),
                         ),
@@ -848,7 +857,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
-                          onPressed: () => setState(() => _stage = _AuthStage.login),
+                          onPressed: () =>
+                              setState(() => _stage = _AuthStage.login),
                           icon: const Icon(Icons.login),
                           label: const Text('Login'),
                         ),
@@ -967,7 +977,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 ? const SizedBox(
                                     height: 18,
                                     width: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
                                   )
                                 : const Text('Login'),
                           ),
@@ -978,7 +989,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           child: OutlinedButton(
                             onPressed: _saving
                                 ? null
-                                : () => setState(() => _stage = _AuthStage.choice),
+                                : () =>
+                                    setState(() => _stage = _AuthStage.choice),
                             child: const Text('Back'),
                           ),
                         ),
@@ -1014,7 +1026,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       const CircleAvatar(
                         radius: 34,
                         backgroundColor: AppColors.emeraldDark,
-                        child: Icon(Icons.check_rounded, color: Colors.white, size: 34),
+                        child: Icon(Icons.check_rounded,
+                            color: Colors.white, size: 34),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -1050,7 +1063,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               ? const SizedBox(
                                   height: 18,
                                   width: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Icon(Icons.arrow_forward_rounded),
                           label: Text(

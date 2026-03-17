@@ -69,6 +69,13 @@ class FirestoreUserService {
         if (phone != null) 'phone': phone,
         if (registerNumber != null) 'registerNumber': registerNumber,
         if (gender != null) 'gender': gender,
+        'tabUsage': <String, dynamic>{
+          'home': FieldValue.increment(0),
+          'eduserve': FieldValue.increment(0),
+          'results': FieldValue.increment(0),
+          'ai': FieldValue.increment(0),
+          'addons': FieldValue.increment(0),
+        },
         'updatedAt': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
       },

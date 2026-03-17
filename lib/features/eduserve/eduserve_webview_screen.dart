@@ -1,5 +1,4 @@
 import 'package:eduserveapp/core/constants/app_config.dart';
-import 'package:eduserveapp/core/services/activity_log_service.dart';
 import 'package:eduserveapp/core/services/analytics_service.dart';
 import 'package:eduserveapp/features/eduserve/shared_webview_screen.dart';
 import 'package:flutter/material.dart';
@@ -25,11 +24,6 @@ class _EduserveWebViewScreenState extends State<EduserveWebViewScreen>
   void initState() {
     super.initState();
     AnalyticsService.instance.logEduserveOpened();
-    ActivityLogService.instance.logCurrentUserAction(
-      uid: widget.uid,
-      action: 'open_eduserve',
-      tab: 'eduserve',
-    );
   }
 
   @override
