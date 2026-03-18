@@ -677,8 +677,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             return Column(
               children: docs.map((doc) {
                 final data = doc.data();
+                final name = (data['name'] as String?)?.trim() ?? 'Unknown';
                 final email = (data['email'] as String?)?.trim() ?? '';
-                final uid = (data['uid'] as String?)?.trim() ?? '';
                 final startTime = data['start'] as Timestamp?;
                 final endTime = data['end'] as Timestamp?;
                 final duration = data['duration'] as num?;
@@ -699,7 +699,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
                 final subtitleLines = <String>[
                   if (email.isNotEmpty) 'Email: $email',
-                  if (uid.isNotEmpty) 'UID: $uid',
                   'Start: ${_formatDateTime(startTime)}',
                   'End: ${_formatDateTime(endTime)}',
                   'Duration: ${_formatDuration(duration)}',
@@ -709,7 +708,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
                 return Card(
                   child: ListTile(
-                    title: Text(uid.isEmpty ? 'Session' : uid),
+                    title: Text(
+                      name.isEmpty ? 'Unknown' : name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     subtitle: Text(subtitleLines.join('\n')),
                   ),
                 );
@@ -765,7 +767,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             return Column(
               children: docs.map((doc) {
                 final data = doc.data();
-                final uid = (data['uid'] as String?)?.trim() ?? '';
+                final name = (data['name'] as String?)?.trim() ?? 'Unknown';
                 final email = (data['email'] as String?)?.trim() ?? '';
                 final sessionStart = data['start'] as Timestamp?;
                 final sessionEnd = data['end'] as Timestamp?;
@@ -780,7 +782,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
                 final subtitleLines = <String>[
                   if (email.isNotEmpty) 'Email: $email',
-                  if (uid.isNotEmpty) 'UID: $uid',
                   'Start: ${_formatDateTime(sessionStart)}',
                   'End: ${_formatDateTime(sessionEnd)}',
                   'Duration: ${_formatDuration(duration)}',
@@ -790,7 +791,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
                 return Card(
                   child: ListTile(
-                    title: Text(uid.isEmpty ? 'Session' : uid),
+                    title: Text(
+                      name.isEmpty ? 'Unknown' : name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     subtitle: Text(subtitleLines.join('\n')),
                   ),
                 );

@@ -17,6 +17,7 @@ class ActivityLogService {
       <String, StudentProfile?>{};
 
   String? _activeUid;
+  String _activeUserName = 'Unknown';
   String _activeUserEmail = '';
   DateTime? _sessionStartLocal;
   final Map<String, int> _sessionTabCounts = <String, int>{
@@ -115,8 +116,11 @@ class ActivityLogService {
         return;
       }
       _profileCache[uid] = profile;
+      _activeUserName = profile.name.trim().isEmpty ? 'Unknown' : profile.name;
       _activeUserEmail = profile.email;
     } else {
+      final displayName = authUser?.displayName?.trim() ?? '';
+      _activeUserName = displayName.isEmpty ? 'Unknown' : displayName;
       _activeUserEmail = authUser?.email ?? '';
     }
 
@@ -205,6 +209,33 @@ class ActivityLogService {
       return;
     }
 
+    var name = _activeUserName.trim().isEmpty ? 'Unknown' : _activeUserName;
+    if (name == 'Unknown') {
+      final cachedProfile = _profileCache[uid];
+      if (cachedProfile != null && cachedProfile.name.trim().isNotEmpty) {
+        name = cachedProfile.name.trim();
+      } else {
+        final userDoc = await FirebaseFirestore.instance
+            .collection(AppConfig.usersCollection)
+            .doc(uid)
+            .get();
+        name = (userDoc.data()?['name'] as String?)?.trim() ?? 'Unknown';
+        if (userDoc.exists) {
+          final data = userDoc.data() ?? <String, dynamic>{};
+          final resolvedEmail = (data['email'] as String?)?.trim() ?? '';
+          _profileCache[uid] = StudentProfile(
+            uid: uid,
+            name: name,
+            email: resolvedEmail,
+            dept: (data['dept'] as String?) ?? '',
+            year: (data['year'] as num?)?.toInt() ?? 1,
+            dob: DateTime(2000, 1, 1),
+          );
+        }
+      }
+    }
+    _activeUserName = name;
+
     final totalTabs =
         _sessionTabCounts.values.fold<int>(0, (total, value) => total + value);
     String mostUsedTab = '-';
@@ -221,6 +252,7 @@ class ActivityLogService {
           .collection(AppConfig.userSessionsCollection)
           .add(<String, dynamic>{
         'uid': uid,
+        'name': name,
         'email': _activeUserEmail,
         'start': Timestamp.fromDate(started),
         'end': FieldValue.serverTimestamp(),
@@ -265,6 +297,7 @@ class ActivityLogService {
 
   void _clearActiveSession() {
     _activeUid = null;
+    _activeUserName = 'Unknown';
     _activeUserEmail = '';
     _sessionStartLocal = null;
     _resetSessionTabCounts();
