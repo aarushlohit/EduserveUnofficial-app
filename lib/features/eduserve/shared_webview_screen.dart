@@ -2,6 +2,7 @@ import 'package:eduserveapp/core/constants/app_config.dart';
 import 'package:eduserveapp/core/services/web_session_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// List of URL indicators that show the session has expired (user redirected to login).
 const List<String> _sessionExpiryIndicators = [
@@ -141,14 +142,12 @@ class _SharedWebViewScreenState extends State<SharedWebViewScreen> {
   /// Detects if the user session has expired and callback redirected to login.
   void _detectSessionExpiry(String? url) {
     if (url == null) return;
-    final isLoginPage = _sessionExpiryIndicators
-        .any((indicator) => url.toLowerCase().contains(indicator.toLowerCase()));
+    final isLoginPage = _sessionExpiryIndicators.any(
+        (indicator) => url.toLowerCase().contains(indicator.toLowerCase()));
     if (isLoginPage) {
       // If redirected to login, session has likely expired.
       // Optionally notify parent or show snackbar.
-      if (mounted) {
-        
-      }
+      if (mounted) {}
     }
   }
 
@@ -181,8 +180,11 @@ class _SharedWebViewScreenState extends State<SharedWebViewScreen> {
     await _refreshNavigationState();
   }
 
-  bool _isAllowed(String url) {
-    return widget.allowedUrlPrefixes.any(url.startsWith);
+  Future<void> _handleDownload(String url) async {
+    await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
   }
 
   @override
@@ -231,6 +233,9 @@ class _SharedWebViewScreenState extends State<SharedWebViewScreen> {
               _controller = controller;
             },
             onLoadStart: (controller, url) {
+              // Debug navigation trace
+              // ignore: avoid_print
+              print('Loading: $url');
               if (mounted) {
                 setState(() => _loading = true);
               }
@@ -264,25 +269,29 @@ class _SharedWebViewScreenState extends State<SharedWebViewScreen> {
             },
             shouldOverrideUrlLoading: (controller, navigationAction) async {
               final url = navigationAction.request.url?.toString() ?? '';
-              // Reuse oldlib behavior: allow expected portal/login URLs and
-              // block unknown external redirects, but if disallowed try to load
-              // it in the same WebView instead of dropping the navigation.
-              if (_isAllowed(url)) {
-                return NavigationActionPolicy.ALLOW;
+              final lower = url.toLowerCase();
+              final isDownload = lower.endsWith('.pdf') ||
+                  lower.endsWith('.zip') ||
+                  lower.endsWith('.doc') ||
+                  lower.endsWith('.xls') ||
+                  lower.contains('download');
+
+              if (isDownload) {
+                await _handleDownload(url);
+                return NavigationActionPolicy.CANCEL;
               }
 
-              // If a target="_blank" or window.open tries to load an external link,
-              // keep it inside this WebView to avoid a stalled login flow.
-              await _controller?.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
-              return NavigationActionPolicy.CANCEL;
+              return NavigationActionPolicy.ALLOW;
+            },
+            onDownloadStartRequest: (controller, request) async {
+              await _handleDownload(request.url.toString());
             },
             onCreateWindow: (controller, createWindowAction) async {
-              final url = createWindowAction.request.url?.toString() ?? '';
-              if (url.isNotEmpty) {
-                // Always load popups in the same WebView to support OAuth/login flows.
-                await _controller?.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+              final uri = createWindowAction.request.url;
+              if (uri != null) {
+                await controller.loadUrl(urlRequest: URLRequest(url: uri));
               }
-              return false;
+              return true;
             },
             onReceivedError: (controller, request, error) {
               if (mounted) {

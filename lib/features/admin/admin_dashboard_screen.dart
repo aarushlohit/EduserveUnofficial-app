@@ -107,7 +107,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       'eduserve': (tabUsage['eduserve'] as num?)?.toInt() ?? 0,
       'results': (tabUsage['results'] as num?)?.toInt() ?? 0,
       'ai': (tabUsage['ai'] as num?)?.toInt() ?? 0,
-      'addons': (tabUsage['addons'] as num?)?.toInt() ?? 0,
+      'externalEvents': (tabUsage['externalEvents'] as num?)?.toInt() ?? 0,
     };
   }
 
@@ -121,8 +121,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         return 'Results';
       case 'ai':
         return 'AI';
-      case 'addons':
-        return 'Add-ons';
+      case 'externalEvents':
+        return 'External Events';
       default:
         return tabKey;
     }
@@ -190,7 +190,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       'eduserve': 0,
       'results': 0,
       'ai': 0,
-      'addons': 0,
+      'externalEvents': 0,
     };
     for (final doc in validSessions) {
       final tabCounts = _extractTabUsageCounts(
@@ -255,7 +255,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               Text('EduServe: ${tabUsage['eduserve'] ?? 0}'),
               Text('Results: ${tabUsage['results'] ?? 0}'),
               Text('AI: ${tabUsage['ai'] ?? 0}'),
-              Text('Add-ons: ${tabUsage['addons'] ?? 0}'),
+              Text('External Events: ${tabUsage['externalEvents'] ?? 0}'),
             ],
           ),
           actions: <Widget>[
@@ -319,14 +319,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     if (result == null) {
       return;
     }
-    await PostService.instance.createPost(
-      title: result.title,
-      description: result.description,
-      imageUrl: result.imageUrl,
-      link: result.link,
-      isDraft: result.isDraft,
-      createdBy: widget.uid,
-    );
+    try {
+      await PostService.instance.createPost(
+        title: result.title,
+        description: result.description,
+        imageUrl: result.imageUrl,
+        link: result.link,
+        isDraft: result.isDraft,
+        createdBy: widget.uid,
+      );
+      // ignore: avoid_print
+      print('[AdminDashboard] create post success');
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[AdminDashboard] create post failed: $e');
+      // ignore: avoid_print
+      print(st);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Create post failed: $e')),
+        );
+      }
+      return;
+    }
 
     await ActivityLogService.instance.logCurrentUserAction(
       uid: widget.uid,
@@ -350,7 +365,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       description: result.description,
       imageUrl: result.imageUrl,
       link: result.link,
-      isDraft: result.isDraft,
+      status: result.isDraft ? 'draft' : 'published',
     );
 
     await ActivityLogService.instance.logCurrentUserAction(
@@ -509,8 +524,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         data.tabUsagePercentages['results'] ?? 0,
                       ),
                       MapEntry(
-                        'addons',
-                        data.tabUsagePercentages['addons'] ?? 0,
+                        'externalEvents',
+                        data.tabUsagePercentages['externalEvents'] ?? 0,
                       ),
                       MapEntry('home', data.tabUsagePercentages['home'] ?? 0),
                     ].map((entry) {
@@ -822,11 +837,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ),
         StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
-              .collection(AppConfig.postsCollection)
+              .collection('hackathons')
               .orderBy('createdAt', descending: true)
-              .limit(20)
               .snapshots(),
           builder: (context, snapshot) {
+            // ignore: avoid_print
+            print(
+                '[AdminDashboard] hackathons docs: ${snapshot.data?.docs.length ?? 0}');
             final docs = snapshot.data?.docs ??
                 <QueryDocumentSnapshot<Map<String, dynamic>>>[];
             if (docs.isEmpty) {
@@ -845,7 +862,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 final description = (data['description'] as String?) ?? '';
                 final link = (data['link'] as String?) ?? '';
                 final imageUrl = (data['imageUrl'] as String?) ?? '';
-                final isDraft = data['isDraft'] == true;
+                final status = ((data['status'] as String?) ??
+                        (data['isDraft'] == true ? 'draft' : 'published'))
+                    .toLowerCase();
                 final createdAt = data['createdAt'];
                 final createdBy = (data['createdBy'] as String?) ?? '';
 
@@ -858,7 +877,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   if (link.isNotEmpty) link,
                   'Created: $when',
                   if (createdBy.isNotEmpty) 'By: $createdBy',
-                  if (isDraft) 'Status: Draft',
+                  'Status: ${status == 'draft' ? 'Draft' : 'Published'}',
                 ]..removeWhere((e) => e.trim().isEmpty);
 
                 return Card(
@@ -878,7 +897,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                             ),
                           )
                         : const Icon(Icons.campaign_outlined),
-                    title: Text(title),
+                    title: Row(
+                      children: <Widget>[
+                        Expanded(child: Text(title)),
+                        const SizedBox(width: 8),
+                        _PostStatusBadge(status: status),
+                      ],
+                    ),
                     subtitle: Text(subtitleLines.join('\n')),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1021,6 +1046,30 @@ class _InsightCard extends StatelessWidget {
   }
 }
 
+class _PostStatusBadge extends StatelessWidget {
+  const _PostStatusBadge({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDraft = status == 'draft';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isDraft
+            ? Theme.of(context).colorScheme.secondaryContainer
+            : Theme.of(context).colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        isDraft ? 'Draft' : 'Published',
+        style: Theme.of(context).textTheme.labelSmall,
+      ),
+    );
+  }
+}
+
 class _PostPayload {
   const _PostPayload({
     required this.title,
@@ -1063,7 +1112,8 @@ class _PostEditorDialogState extends State<_PostEditorDialog> {
     _imageUrl =
         TextEditingController(text: (data?['imageUrl'] as String?) ?? '');
     _link = TextEditingController(text: (data?['link'] as String?) ?? '');
-    _isDraft = data?['isDraft'] == true;
+    _isDraft =
+        (data?['status'] as String?) == 'draft' || data?['isDraft'] == true;
 
     _imageUrl.addListener(() => setState(() {}));
     _link.addListener(() => setState(() {}));

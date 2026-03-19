@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:eduserveapp/core/constants/app_config.dart';
 
 class PostService {
   PostService._();
@@ -8,7 +7,7 @@ class PostService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> get _postsCol =>
-      _firestore.collection(AppConfig.postsCollection);
+      _firestore.collection('hackathons');
 
   Future<void> createPost({
     required String title,
@@ -18,17 +17,28 @@ class PostService {
     String? link,
     bool isDraft = false,
   }) async {
-    await _postsCol.add(<String, dynamic>{
-      'title': title,
-      'description': description,
-      'imageUrl': imageUrl ?? '',
-      'link': link ?? '',
-      'isDraft': isDraft,
-      'createdAt': FieldValue.serverTimestamp(),
-      'createdBy': createdBy,
-    });
+    try {
+      await _postsCol.add(<String, dynamic>{
+        'title': title,
+        'description': description,
+        'imageUrl': imageUrl ?? '',
+        'link': link ?? '',
+        'status': isDraft ? 'draft' : 'published',
+        'createdAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
+        'createdBy': createdBy,
+      });
 
-    await _enforceMaxPosts();
+      await _enforceMaxPosts();
+      // ignore: avoid_print
+      print('[PostService] createPost success in hackathons');
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[PostService] createPost failed: $e');
+      // ignore: avoid_print
+      print(st);
+      rethrow;
+    }
   }
 
   Future<void> updatePost({
@@ -37,52 +47,61 @@ class PostService {
     required String description,
     String? imageUrl,
     String? link,
-    bool? isDraft,
+    required String status,
   }) async {
-    await _postsCol.doc(docId).update(<String, dynamic>{
-      'title': title,
-      'description': description,
-      'imageUrl': imageUrl ?? '',
-      'link': link ?? '',
-      if (isDraft != null) 'isDraft': isDraft,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    if (isDraft == false) {
-      await _enforceMaxPosts();
+    try {
+      await _postsCol.doc(docId).update(<String, dynamic>{
+        'title': title,
+        'description': description,
+        'imageUrl': imageUrl ?? '',
+        'link': link ?? '',
+        'status': status,
+        'updatedAt': Timestamp.now(),
+      });
+      // ignore: avoid_print
+      print('[PostService] updatePost success: $docId');
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[PostService] updatePost failed ($docId): $e');
+      // ignore: avoid_print
+      print(st);
+      rethrow;
     }
   }
 
   Future<void> deletePost(String docId) async {
-    await _postsCol.doc(docId).delete();
+    try {
+      await _postsCol.doc(docId).delete();
+      // ignore: avoid_print
+      print('[PostService] deletePost success: $docId');
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[PostService] deletePost failed ($docId): $e');
+      // ignore: avoid_print
+      print(st);
+      rethrow;
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchLatestPosts({int limit = 20}) async {
     final snap = await _postsCol
+        .where('status', isEqualTo: 'published')
         .orderBy('createdAt', descending: true)
-        .where('isDraft', isEqualTo: false)
         .limit(limit)
         .get();
     return snap.docs.map((d) => d.data()).toList(growable: false);
   }
 
   Future<void> _enforceMaxPosts() async {
-    const maxPosts = 7;
-    final snap = await _postsCol
-      .orderBy('createdAt', descending: false)
-      .where('isDraft', isEqualTo: false)
-      .limit(20)
-      .get();
+    const maxPosts = 20;
+    final snap = await _postsCol.orderBy('createdAt', descending: false).get();
 
     if (snap.docs.length <= maxPosts) {
       return;
     }
 
-    final toDelete = snap.docs.take(snap.docs.length - maxPosts);
-    final batch = _firestore.batch();
-    for (final doc in toDelete) {
-      batch.delete(doc.reference);
+    for (var i = 0; i < snap.docs.length - maxPosts; i++) {
+      await snap.docs[i].reference.delete();
     }
-    await batch.commit();
   }
 }

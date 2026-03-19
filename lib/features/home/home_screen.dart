@@ -19,7 +19,7 @@ class HomeScreen extends StatefulWidget {
     required this.onOpenEduserve,
     required this.onOpenResults,
     required this.onOpenAi,
-    required this.onOpenAddons,
+    required this.onOpenExternalEvents,
   });
 
   final String uid;
@@ -29,7 +29,7 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback onOpenEduserve;
   final VoidCallback onOpenResults;
   final VoidCallback onOpenAi;
-  final VoidCallback onOpenAddons;
+  final VoidCallback onOpenExternalEvents;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -71,7 +71,8 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Align(
             alignment: Alignment.topRight,
             child: Padding(
-              padding: const EdgeInsets.only(top: kToolbarHeight + 12, right: 12),
+              padding:
+                  const EdgeInsets.only(top: kToolbarHeight + 12, right: 12),
               child: SafeArea(
                 child: Material(
                   color: Colors.transparent,
@@ -230,7 +231,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 gradient: LinearGradient(
                   colors: Theme.of(context).brightness == Brightness.dark
                       ? const <Color>[Color(0xFF38BDF8), Color(0xFF0284C7)]
-                      : const <Color>[AppColors.emeraldPrimary, AppColors.emeraldDark],
+                      : const <Color>[
+                          AppColors.emeraldPrimary,
+                          AppColors.emeraldDark
+                        ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -321,20 +325,18 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: widget.onOpenAi,
           ),
           _DashboardCard(
-            title: 'Add-ons',
-            subtitle: 'More Tools',
+            title: 'External Events',
+            subtitle: 'Fee Payment',
             icon: Icons.grid_view_rounded,
             color: Theme.of(context).colorScheme.error,
             width: itemWidth,
             height: itemHeight,
-            onTap: widget.onOpenAddons,
+            onTap: widget.onOpenExternalEvents,
           ),
         ],
       );
     });
   }
-
- 
 }
 
 class _NewsFeed extends StatelessWidget {
@@ -357,13 +359,14 @@ class _NewsFeed extends StatelessWidget {
         const SizedBox(height: 12),
         StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
-              .collection(AppConfig.postsCollection)
+              .collection(AppConfig.hackathonsCollection)
+              .where('status', isEqualTo: 'published')
               .orderBy('createdAt', descending: true)
               .limit(20)
               .snapshots(),
           builder: (context, snapshot) {
-            final allDocs = snapshot.data?.docs ?? <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-            final docs = allDocs.where((d) => d.data()['isDraft'] != true).toList();
+            final docs = snapshot.data?.docs ??
+                <QueryDocumentSnapshot<Map<String, dynamic>>>[];
             if (docs.isEmpty) {
               return const Card(
                 child: Padding(
@@ -381,13 +384,20 @@ class _NewsFeed extends StatelessWidget {
                   children: [
                     ...visible.map((doc) {
                       final data = doc.data();
-                      final title = (data['title'] as String?) ?? 'Announcement';
-                      final description = (data['description'] as String?) ?? '';
+                      final title =
+                          (data['title'] as String?) ?? 'Announcement';
+                      final description =
+                          (data['description'] as String?) ?? '';
                       final link = (data['link'] as String?) ?? '';
                       final imageUrl = (data['imageUrl'] as String?) ?? '';
                       final ts = data['createdAt'];
                       final when = ts is Timestamp
-                          ? ts.toDate().toLocal().toIso8601String().split('T').first
+                          ? ts
+                              .toDate()
+                              .toLocal()
+                              .toIso8601String()
+                              .split('T')
+                              .first
                           : '-';
 
                       final subtitleLines = <String>[
@@ -404,7 +414,8 @@ class _NewsFeed extends StatelessWidget {
                                       mode: LaunchMode.externalApplication);
                                   if (!ok && context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Could not open link')),
+                                      const SnackBar(
+                                          content: Text('Could not open link')),
                                     );
                                   }
                                 }
@@ -414,16 +425,20 @@ class _NewsFeed extends StatelessWidget {
                             children: [
                               if (imageUrl.isNotEmpty)
                                 ClipRRect(
-                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                  borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(12)),
                                   child: AspectRatio(
                                     aspectRatio: 16 / 9,
                                     child: Image.network(
                                       imageUrl,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, __, ___) => Container(
-                                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerHighest,
                                         alignment: Alignment.center,
-                                        child: const Icon(Icons.broken_image_outlined),
+                                        child: const Icon(
+                                            Icons.broken_image_outlined),
                                       ),
                                     ),
                                   ),
@@ -446,7 +461,8 @@ class _NewsFeed extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         child: TextButton.icon(
                           onPressed: () => _expanded.value = !expanded,
-                          icon: Icon(expanded ? Icons.expand_less : Icons.expand_more),
+                          icon: Icon(
+                              expanded ? Icons.expand_less : Icons.expand_more),
                           label: Text(expanded ? 'Show less' : 'Read more'),
                         ),
                       ),
@@ -490,9 +506,7 @@ class _DashboardCard extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
         side: BorderSide(
-          color: isDark
-              ? const Color(0xFF2E2E2E)
-              : Colors.black12,
+          color: isDark ? const Color(0xFF2E2E2E) : Colors.black12,
           width: isDark ? 0.8 : 0.5,
         ),
       ),
@@ -555,7 +569,6 @@ class _DashboardCard extends StatelessWidget {
   }
 }
 
-
 class _NotificationPopup extends StatefulWidget {
   const _NotificationPopup({required this.initialFeed});
 
@@ -603,7 +616,10 @@ class _NotificationPopupState extends State<_NotificationPopup> {
             offset: const Offset(0, 12),
           ),
         ],
-        border: Border.all(color: theme.brightness == Brightness.dark ? const Color(0xFF2E2E2E) : Colors.black12.withValues(alpha: 0.08)),
+        border: Border.all(
+            color: theme.brightness == Brightness.dark
+                ? const Color(0xFF2E2E2E)
+                : Colors.black12.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -640,7 +656,8 @@ class _NotificationPopupState extends State<_NotificationPopup> {
                     ),
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     itemCount: _feed.length,
                     itemBuilder: (context, index) {
                       final item = _feed[index];
@@ -652,7 +669,8 @@ class _NotificationPopupState extends State<_NotificationPopup> {
                           '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 
                       return Dismissible(
-                        key: ValueKey('${item['title']}-${item['createdAtMs'] ?? index}'),
+                        key: ValueKey(
+                            '${item['title']}-${item['createdAtMs'] ?? index}'),
                         direction: DismissDirection.endToStart,
                         onDismissed: (_) {
                           _deleteItem(item);
@@ -665,7 +683,8 @@ class _NotificationPopupState extends State<_NotificationPopup> {
                           ),
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: const Icon(Icons.delete_outline, color: Colors.white),
+                          child: const Icon(Icons.delete_outline,
+                              color: Colors.white),
                         ),
                         child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 6),
@@ -712,7 +731,8 @@ class _NotificationPopupState extends State<_NotificationPopup> {
                                     const SizedBox(height: 6),
                                     Text(
                                       timeText,
-                                      style: theme.textTheme.bodySmall?.copyWith(
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
                                         color: Colors.grey,
                                       ),
                                     ),

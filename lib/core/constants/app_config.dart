@@ -19,8 +19,8 @@ class AppConfig {
   static const String eduserveDashboardUrl = 'https://eduserve.karunya.edu';
   static const String eduserveLoginUrl =
       'https://eduserve.karunya.edu/Account/Login';
-  static const String addonsUrl =
-      'https://eduserve.karunya.edu/Online/ExternalEvents.aspx';
+  static const String externalEventsUrl =
+      'https://eduserve.karunya.edu/online/PayAddOnFees.aspx';
   // Spoofed User-Agent that removes the Android "wv" WebView marker so
   // Google OAuth treats the InAppWebView as a standard Chrome browser.
   // Mobile Chrome UA (mirrors oldlib behavior and keeps OAuth happy)

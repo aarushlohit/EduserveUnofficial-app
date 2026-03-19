@@ -1,8 +1,9 @@
 import 'dart:async';
 
+import 'package:eduserveapp/features/eduserve/external_events_screen.dart';
+import 'package:eduserveapp/features/eduserve/fees_screen.dart';
 import 'package:eduserveapp/features/settings/theme_controller.dart';
-import 'package:eduserveapp/features/settings/privacy_policy_screen.dart';
-import 'package:eduserveapp/features/settings/terms_screen.dart';
+import 'package:eduserveapp/features/web/common_webview_page.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -67,7 +68,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (_, __, ___) => const SizedBox.shrink(),
       transitionBuilder: (context, animation, __, ___) {
-        final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut);
+        final curved =
+            CurvedAnimation(parent: animation, curve: Curves.easeOut);
         return FadeTransition(
           opacity: curved,
           child: Center(
@@ -109,6 +111,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _showTermsAndPrivacy() async {
+    if (!mounted) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Terms & Privacy'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'We do not collect more than we need.\n\n'
+            'We do observe patterns, not people.\n'
+            'Your actions stay yours.\n'
+            'Your identity stays protected.\n\n'
+            'This app learns usage, not secrets.\n\n'
+            'We do not sell your data.\n'
+            'Tracking is minimal and focused on app usage analytics only.\n'
+            'Admin visibility is limited to activity patterns and aggregate usage, not your private content.\n\n'
+            'Security is handled with care, but no system can promise perfect safety in every network condition.',
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -209,26 +243,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 6),
           const _SectionHeader('Legal'),
           _SectionCard(
+            child: ListTile(
+              leading: const Icon(Icons.shield_outlined),
+              title: const Text('Terms & Privacy'),
+              subtitle:
+                  const Text('How we handle usage, visibility, and trust'),
+              onTap: _showTermsAndPrivacy,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const _SectionHeader('Portals'),
+          _SectionCard(
             child: Column(
               children: <Widget>[
                 ListTile(
-                  leading: const Icon(Icons.description_outlined),
-                  title: const Text('Terms and Conditions'),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const TermsScreen(),
-                    ),
-                  ),
+                  leading: const Icon(Icons.payments_outlined),
+                  title: const Text('Fees'),
+                  subtitle: const Text('Regular and add-ons fee payment'),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const FeesScreen(),
+                      ),
+                    );
+                  },
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.privacy_tip_outlined),
-                  title: const Text('Privacy Policy'),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const PrivacyPolicyScreen(),
-                    ),
-                  ),
+                  leading: const Icon(Icons.event_available_outlined),
+                  title: const Text('External Events'),
+                  subtitle: const Text('Open external events portal'),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const ExternalEventsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.public_outlined),
+                  title: const Text('Karunya Website'),
+                  subtitle: const Text('https://karunya.edu'),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const CommonWebViewPage(
+                          title: 'Karunya Website',
+                          url: 'https://karunya.edu',
+                          tabKey: 'website',
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

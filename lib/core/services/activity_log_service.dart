@@ -25,7 +25,9 @@ class ActivityLogService {
     'eduserve': 0,
     'results': 0,
     'ai': 0,
-    'addons': 0,
+    'fees': 0,
+    'externalEvents': 0,
+    'website': 0,
   };
 
   bool _cachedEnabled = true;
@@ -36,7 +38,9 @@ class ActivityLogService {
     'eduserve',
     'results',
     'ai',
-    'addons',
+    'fees',
+    'externalEvents',
+    'website',
   };
 
   String _todayKey() {

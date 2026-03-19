@@ -13,7 +13,7 @@ import 'package:eduserveapp/core/services/update_config_service.dart';
 import 'package:eduserveapp/core/utils/version_utils.dart';
 import 'package:eduserveapp/features/admin/admin_dashboard_screen.dart';
 import 'package:eduserveapp/features/ai_chat/ai_chat_screen.dart';
-import 'package:eduserveapp/features/eduserve/addons_webview_screen.dart';
+import 'package:eduserveapp/features/eduserve/external_events_webview_screen.dart';
 import 'package:eduserveapp/features/eduserve/eduserve_webview_screen.dart';
 import 'package:eduserveapp/features/home/home_screen.dart';
 import 'package:eduserveapp/features/onboarding/onboarding_screen.dart';
@@ -655,14 +655,14 @@ class _MainShellState extends State<_MainShell> {
       1 => 'eduserve',
       2 => 'results',
       3 => 'ai',
-      _ => 'addons',
+      _ => 'externalEvents',
     };
     final action = switch (value) {
       0 => 'open_home',
       1 => 'open_eduserve',
       2 => 'open_results',
       3 => 'open_ai',
-      _ => 'open_addons',
+      _ => 'open_external_events',
     };
 
     ActivityLogService.instance.logCurrentUserAction(
@@ -692,12 +692,12 @@ class _MainShellState extends State<_MainShell> {
         onOpenEduserve: () => _openTab(1),
         onOpenResults: () => _openTab(2),
         onOpenAi: () => _openTab(3),
-        onOpenAddons: () => _openTab(4),
+        onOpenExternalEvents: () => _openTab(4),
       ),
       EduserveWebViewScreen(uid: widget.uid),
       ResultsWebViewScreen(uid: widget.uid),
       AiChatScreen(uid: widget.uid),
-      AddonsWebViewScreen(uid: widget.uid),
+      ExternalEventsWebViewScreen(uid: widget.uid),
     ];
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -753,7 +753,7 @@ class _MainShellState extends State<_MainShell> {
                     : Icons.grid_view_outlined,
                 showDot: _tabRedDots[4] == true,
               ),
-              label: 'Add-ons',
+              label: 'External Events',
             ),
           ],
         ),

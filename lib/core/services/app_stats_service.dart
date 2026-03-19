@@ -10,10 +10,9 @@ class AppStatsService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  DocumentReference<Map<String, dynamic>> get _globalStatsRef =>
-      _firestore
-          .collection(AppConfig.analyticsGlobalCollection)
-          .doc(AppConfig.analyticsGlobalDoc);
+  DocumentReference<Map<String, dynamic>> get _globalStatsRef => _firestore
+      .collection(AppConfig.analyticsGlobalCollection)
+      .doc(AppConfig.analyticsGlobalDoc);
 
   CollectionReference<Map<String, dynamic>> get _dailyStatsCol =>
       _firestore.collection(AppConfig.analyticsDailyCollection);
@@ -84,7 +83,9 @@ class AppStatsService {
       'eduserve' => 'eduserveOpens',
       'results' => 'resultsOpens',
       'ai' => 'aiOpens',
-      'addons' => 'addonsOpens',
+      'fees' => 'feesOpens',
+      'externalEvents' => 'externalEventsOpens',
+      'website' => 'websiteOpens',
       _ => 'homeOpens',
     };
 
