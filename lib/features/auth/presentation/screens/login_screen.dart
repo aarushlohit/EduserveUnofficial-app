@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eduserveapp/core/constants/app_config.dart';
 import 'package:eduserveapp/core/constants/colors.dart';
 import 'package:eduserveapp/core/services/notification_center_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -213,6 +214,35 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 24),
+                
+                // Legal text
+                Center(
+                  child: GestureDetector(
+                    onTap: () async {
+                      final url = Uri.parse('https://eduserveunofficial.vercel.app/#legal');
+                      if (!await launchUrl(url)) {
+                        debugPrint('Could not launch \$url');
+                      }
+                    },
+                    child: Text.rich(
+                      TextSpan(
+                        text: 'By continuing, you agree to our ',
+                        children: [
+                          TextSpan(
+                            text: 'Terms & Conditions',
+                            style: TextStyle(
+                              decoration: TextDecoration.underline,
+                              color: AppColors.royalBlue,
+                            ),
+                          ),
+                        ],
+                      ),
+                      style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                    ),
+                  ),
+                ),
+                
                 const Spacer(flex: 2),
               ],
             ),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:eduserveapp/features/eduserve/external_events_screen.dart';
 import 'package:eduserveapp/features/eduserve/fees_screen.dart';
 import 'package:eduserveapp/features/settings/theme_controller.dart';
+import 'package:eduserveapp/features/settings/legal_screen.dart';
 import 'package:eduserveapp/features/web/common_webview_page.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -118,31 +119,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) {
       return;
     }
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Terms & Privacy'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'We do not collect more than we need.\n\n'
-            'We do observe patterns, not people.\n'
-            'Your actions stay yours.\n'
-            'Your identity stays protected.\n\n'
-            'This app learns usage, not secrets.\n\n'
-            'We do not sell your data.\n'
-            'Tracking is minimal and focused on app usage analytics only.\n'
-            'Admin visibility is limited to activity patterns and aggregate usage, not your private content.\n\n'
-            'Security is handled with care, but no system can promise perfect safety in every network condition.',
-          ),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
+    
+    // We navigate to the new legal screen instead of dialog
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const LegalScreen()),
     );
   }
 

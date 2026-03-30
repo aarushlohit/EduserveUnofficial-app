@@ -18,7 +18,6 @@ class HomeScreen extends StatefulWidget {
     required this.onOpenSettings,
     required this.onOpenEduserve,
     required this.onOpenResults,
-    required this.onOpenAi,
     required this.onOpenExternalEvents,
   });
 
@@ -28,7 +27,6 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenEduserve;
   final VoidCallback onOpenResults;
-  final VoidCallback onOpenAi;
   final VoidCallback onOpenExternalEvents;
 
   @override
@@ -314,15 +312,6 @@ class _HomeScreenState extends State<HomeScreen> {
             width: itemWidth,
             height: itemHeight,
             onTap: widget.onOpenResults,
-          ),
-          _DashboardCard(
-            title: 'AI Assistant',
-            subtitle: 'Get Help',
-            icon: Icons.auto_awesome,
-            color: Color(0xFF0EA5E9),
-            width: itemWidth,
-            height: itemHeight,
-            onTap: widget.onOpenAi,
           ),
           _DashboardCard(
             title: 'External Events',

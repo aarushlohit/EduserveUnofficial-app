@@ -12,7 +12,6 @@ import 'package:eduserveapp/core/services/notification_center_service.dart';
 import 'package:eduserveapp/core/services/update_config_service.dart';
 import 'package:eduserveapp/core/utils/version_utils.dart';
 import 'package:eduserveapp/features/admin/admin_dashboard_screen.dart';
-import 'package:eduserveapp/features/ai_chat/ai_chat_screen.dart';
 import 'package:eduserveapp/features/eduserve/external_events_webview_screen.dart';
 import 'package:eduserveapp/features/eduserve/eduserve_webview_screen.dart';
 import 'package:eduserveapp/features/home/home_screen.dart';
@@ -629,7 +628,6 @@ class _MainShellState extends State<_MainShell> {
     1: true,
     2: true,
     3: true,
-    4: true,
   };
 
   @override
@@ -654,14 +652,14 @@ class _MainShellState extends State<_MainShell> {
       0 => 'home',
       1 => 'eduserve',
       2 => 'results',
-      3 => 'ai',
+      3 => 'externalEvents',
       _ => 'externalEvents',
     };
     final action = switch (value) {
       0 => 'open_home',
       1 => 'open_eduserve',
       2 => 'open_results',
-      3 => 'open_ai',
+      3 => 'open_external_events',
       _ => 'open_external_events',
     };
 
@@ -691,12 +689,10 @@ class _MainShellState extends State<_MainShell> {
         },
         onOpenEduserve: () => _openTab(1),
         onOpenResults: () => _openTab(2),
-        onOpenAi: () => _openTab(3),
-        onOpenExternalEvents: () => _openTab(4),
+        onOpenExternalEvents: () => _openTab(3),
       ),
       EduserveWebViewScreen(uid: widget.uid),
       ResultsWebViewScreen(uid: widget.uid),
-      AiChatScreen(uid: widget.uid),
       ExternalEventsWebViewScreen(uid: widget.uid),
     ];
 
@@ -740,18 +736,9 @@ class _MainShellState extends State<_MainShell> {
             BottomNavigationBarItem(
               icon: _TabIconWithDot(
                 icon: _index == 3
-                    ? Icons.auto_awesome
-                    : Icons.auto_awesome_outlined,
-                showDot: _tabRedDots[3] == true,
-              ),
-              label: 'AI',
-            ),
-            BottomNavigationBarItem(
-              icon: _TabIconWithDot(
-                icon: _index == 4
                     ? Icons.grid_view_sharp
                     : Icons.grid_view_outlined,
-                showDot: _tabRedDots[4] == true,
+                showDot: _tabRedDots[3] == true,
               ),
               label: 'External Events',
             ),
